@@ -146,7 +146,7 @@
 
         // --- HELPERS ---
         const calculateScore = (submission, examData) => {
-            if (!examData || !examData.questions) return { score: 0, max: 0, formatted: "N/A" };
+            if (!examData || !examData.questions || !submission || !submission.answers) return { score: 0, max: 0, formatted: "N/A" };
             let score = 0;
             let max = 0; 
             const questions = Array.isArray(examData.questions) ? examData.questions : Object.values(examData.questions || {});
@@ -157,15 +157,15 @@
                     score += submission.manualGrades[q.id];
                     return;
                 }
-                const studentAns = submission.answers[q.id]?.value || submission.answers[q.id];
-                const ansValue = typeof studentAns === 'object' ? studentAns?.value : studentAns;
+                const answerEntry = submission.answers[q.id];
+                const studentAns = typeof answerEntry === 'object' && answerEntry !== null ? answerEntry.value : answerEntry;
 
-                if (!ansValue) return;
+                if (!studentAns) return;
 
                 if (q.type === 'multiple_choice' || q.type === 'true_false') {
-                    if (ansValue === q.correctAnswer) score += points;
+                    if (studentAns === q.correctAnswer) score += points;
                 } else if (q.type === 'identification') {
-                    if (q.correctAnswer && ansValue.trim().toLowerCase() === q.correctAnswer.trim().toLowerCase()) score += points;
+                    if (q.correctAnswer && studentAns.trim().toLowerCase() === q.correctAnswer.trim().toLowerCase()) score += points;
                 }
             });
             return { score, max, formatted: max > 0 ? `${score}/${max}` : "Manual" };
@@ -574,13 +574,11 @@
             const [gradingSubId, setGradingSubId] = useState(null); 
             const [stats, setStats] = useState({ avg: 0, high: 0, low: 0 });
 
-            // Fetch Exam Data once
             useEffect(() => {
                 if(!examId) return;
                 db.ref(`exams/${examId}`).once('value').then(s => setExamData(s.val()));
             }, [examId]);
 
-            // Subscribe to Submissions
             useEffect(() => {
                 if(!examId) return;
                 const subRef = db.ref('submissions').orderByChild('examId').equalTo(examId);
@@ -592,50 +590,38 @@
                 return () => subRef.off('value', handleData);
             }, [examId]);
 
-            // Calculate Stats when subs or examData changes
             useEffect(() => {
                 if (subs.length > 0 && examData) {
                      let total = 0, high = 0, low = 1000;
                      let counted = 0;
                      subs.forEach(sub => {
                          const { score, max } = calculateScore(sub, examData);
-                         // Only count if it's a valid score
-                         if(max > 0 && typeof score === 'number') {
+                         if(max > 0) {
                             total += score;
                             if(score > high) high = score;
                             if(score < low) low = score;
                             counted++;
                          }
                      });
-                     
-                     // Reset low if no valid scores found to avoid showing 1000
                      if (counted === 0) low = 0;
                      else if (low === 1000) low = 0;
-
                      setStats({ avg: counted ? (total/counted).toFixed(1) : 0, high, low });
                 } else {
                      setStats({ avg: 0, high: 0, low: 0 });
                 }
             }, [subs, examData]);
 
-            // Helper to get questions array safely
-            const getQuestions = () => {
-                if (!examData || !examData.questions) return [];
-                return Array.isArray(examData.questions) ? examData.questions : Object.values(examData.questions);
-            };
-
             const handleExport = () => {
                 if(!examData) return;
-                const questions = getQuestions();
+                const questions = Array.isArray(examData.questions) ? examData.questions : Object.values(examData.questions || {});
                 const header = ["Student", "Score", ...questions.map((q, i) => `Q${i+1}`)];
                 const data = subs.map(s => {
-                    const scoreData = calculateScore(s, examData);
-                    const qAnswers = questions.map(q => {
-                         const ans = s.answers && s.answers[q.id];
-                         if (typeof ans === 'object' && ans !== null) return ans.value || '[Image]';
-                         return ans || '';
+                    const scoreInfo = calculateScore(s, examData);
+                    const answers = questions.map(q => {
+                        const ans = s.answers && s.answers[q.id];
+                        return (typeof ans === 'object' && ans) ? (ans.value || '[Image]') : (ans || '');
                     });
-                    return [s.studentName, scoreData.formatted, ...qAnswers];
+                    return [s.studentName, scoreInfo.formatted, ...answers];
                 });
                 
                 const wb = XLSX.utils.book_new();
@@ -644,7 +630,7 @@
             };
 
             const gradingSub = subs.find(s => s.id === gradingSubId);
-            const questions = getQuestions();
+            const questions = examData ? (Array.isArray(examData.questions) ? examData.questions : Object.values(examData.questions || {})) : [];
 
             return (
                 <div className="fixed inset-0 z-50 bg-navy/80 backdrop-blur-md flex items-center justify-center p-4">
