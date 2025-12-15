@@ -494,7 +494,7 @@
                                             </div>
                                             
                                             <textarea className="w-full p-4 rounded-xl text-sm h-24 mb-4 resize-none" placeholder="Question text..." value={curQ.text} onChange={e => setCurQ({...curQ, text: e.target.value})}></textarea>
-                                            <ImageUpload currentImage={curQ.image} onUpload={(b64) => setCurQ({...curQ, image: b64})} onRemove={() => setCurQ({...curQ, image: null})} label="Question Image (Optional - Max 7MB)" />
+                                            <ImageUpload currentImage={curQ.image} onUpload={(b64) => setCurQ({...curQ, image: b64})} onRemove={() => setCurQ({...curQ, image: null})} label="Question Image (Optional)" />
 
                                             {(qType === 'identification' || qType === 'essay') && (
                                                 <div className="mb-4">
@@ -574,47 +574,84 @@
             const [gradingSubId, setGradingSubId] = useState(null); 
             const [stats, setStats] = useState({ avg: 0, high: 0, low: 0 });
 
+            // Fetch Exam Data once
             useEffect(() => {
+                if(!examId) return;
                 db.ref(`exams/${examId}`).once('value').then(s => setExamData(s.val()));
-                db.ref('submissions').orderByChild('examId').equalTo(examId).on('value', s => {
+            }, [examId]);
+
+            // Subscribe to Submissions
+            useEffect(() => {
+                if(!examId) return;
+                const subRef = db.ref('submissions').orderByChild('examId').equalTo(examId);
+                const handleData = (s) => {
                     const data = s.val() ? Object.entries(s.val()).map(([k,v]) => ({id:k, ...v})) : [];
                     setSubs(data);
-                    
-                    if (data.length > 0 && examData) {
-                         // Calculate basic stats for autograded portions
-                         let total = 0, high = 0, low = 1000;
-                         let counted = 0;
-                         data.forEach(sub => {
-                             const { score, max } = calculateScore(sub, examData);
-                             if(max > 0) {
-                                total += score;
-                                if(score > high) high = score;
-                                if(score < low) low = score;
-                                counted++;
-                             }
-                         });
-                         setStats({ avg: counted ? (total/counted).toFixed(1) : 0, high, low: low === 1000 ? 0 : low });
-                    }
-                });
-            }, [examId, examData]);
+                };
+                subRef.on('value', handleData);
+                return () => subRef.off('value', handleData);
+            }, [examId]);
+
+            // Calculate Stats when subs or examData changes
+            useEffect(() => {
+                if (subs.length > 0 && examData) {
+                     let total = 0, high = 0, low = 1000;
+                     let counted = 0;
+                     subs.forEach(sub => {
+                         const { score, max } = calculateScore(sub, examData);
+                         // Only count if it's a valid score
+                         if(max > 0 && typeof score === 'number') {
+                            total += score;
+                            if(score > high) high = score;
+                            if(score < low) low = score;
+                            counted++;
+                         }
+                     });
+                     
+                     // Reset low if no valid scores found to avoid showing 1000
+                     if (counted === 0) low = 0;
+                     else if (low === 1000) low = 0;
+
+                     setStats({ avg: counted ? (total/counted).toFixed(1) : 0, high, low });
+                } else {
+                     setStats({ avg: 0, high: 0, low: 0 });
+                }
+            }, [subs, examData]);
+
+            // Helper to get questions array safely
+            const getQuestions = () => {
+                if (!examData || !examData.questions) return [];
+                return Array.isArray(examData.questions) ? examData.questions : Object.values(examData.questions);
+            };
 
             const handleExport = () => {
                 if(!examData) return;
-                const header = ["Student", "Score", ...examData.questions.map((q, i) => `Q${i+1}`)];
-                const data = subs.map(s => [s.studentName, calculateScore(s, examData).formatted, ...examData.questions.map(q => typeof s.answers[q.id] === 'object' ? (s.answers[q.id].value || '[Image]') : (s.answers[q.id] || ''))]);
+                const questions = getQuestions();
+                const header = ["Student", "Score", ...questions.map((q, i) => `Q${i+1}`)];
+                const data = subs.map(s => {
+                    const scoreData = calculateScore(s, examData);
+                    const qAnswers = questions.map(q => {
+                         const ans = s.answers && s.answers[q.id];
+                         if (typeof ans === 'object' && ans !== null) return ans.value || '[Image]';
+                         return ans || '';
+                    });
+                    return [s.studentName, scoreData.formatted, ...qAnswers];
+                });
+                
                 const wb = XLSX.utils.book_new();
                 XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([header, ...data]), "Results");
                 XLSX.writeFile(wb, `${examData.title}_Results.xlsx`);
             };
 
             const gradingSub = subs.find(s => s.id === gradingSubId);
+            const questions = getQuestions();
 
             return (
                 <div className="fixed inset-0 z-50 bg-navy/80 backdrop-blur-md flex items-center justify-center p-4">
                     <div className="bg-navy-light rounded-2xl shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col border border-navy-lighter">
                         <div className="p-6 border-b border-navy-lighter flex flex-col md:flex-row justify-between items-center bg-navy-dark/30 gap-4">
                             <div>
-                                <h2 className="text-xl font-bold text-cream">Results: {examData?.title}</h2>
+                                <h2 className="text-xl font-bold text-cream">Results: {examData?.title || 'Loading...'}</h2>
                                 <p className="text-xs text-slate-400 mt-1">Avg Score: <span className="text-gold">{stats.avg}</span> • High: {stats.high} • Low: {stats.low}</p>
                             </div>
                             <div className="flex gap-2">
@@ -642,11 +679,11 @@
                             <div className="bg-navy-light w-full max-w-4xl h-[90vh] flex flex-col rounded-2xl border border-navy-lighter">
                                 <div className="p-4 border-b border-navy-lighter flex justify-between"><h3 className="font-bold text-lg">{gradingSub.studentName}</h3><button onClick={()=>setGradingSubId(null)} className="text-slate-400 hover:text-white"><Icons.X/></button></div>
                                 <div className="flex-1 overflow-y-auto p-6 space-y-4 scroller">
-                                    {examData.questions.map((q, i) => {
-                                        const ansObj = gradingSub.answers[q.id];
-                                        const ansVal = typeof ansObj === 'object' ? ansObj?.value : ansObj;
-                                        const ansImg = typeof ansObj === 'object' ? ansObj?.image : null;
-                                        const manual = gradingSub.manualGrades?.[q.id];
+                                    {questions.map((q, i) => {
+                                        const ansObj = gradingSub.answers && gradingSub.answers[q.id];
+                                        const ansVal = typeof ansObj === 'object' && ansObj !== null ? ansObj.value : ansObj;
+                                        const ansImg = typeof ansObj === 'object' && ansObj !== null ? ansObj.image : null;
+                                        const manual = gradingSub.manualGrades && gradingSub.manualGrades[q.id];
                                         return (
                                             <div key={q.id} className="p-4 bg-navy-dark rounded-xl border border-navy-lighter">
                                                 <div className="flex justify-between mb-2">
