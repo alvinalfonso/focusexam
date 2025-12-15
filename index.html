@@ -1,0 +1,1156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FocusExam - Modern Platform</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        cream: '#FFFDF0',
+                        gold: { DEFAULT: '#F5C400', light: '#FFDC5F', dim: '#b48f00' },
+                        navy: { DEFAULT: '#001840', light: '#102A71', lighter: '#1e3a8a', dark: '#000f29' }
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.4s ease-out forwards',
+                        'slide-up': 'slideUp 0.4s ease-out forwards',
+                        'pulse-gold': 'pulseGold 2s infinite',
+                        'pulse-red': 'pulseRed 1s infinite',
+                    },
+                    keyframes: {
+                        fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
+                        slideUp: { '0%': { opacity: '0', transform: 'translateY(20px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
+                        pulseGold: { '0%, 100%': { borderColor: '#F5C400' }, '50%': { borderColor: '#FFDC5F' } },
+                        pulseRed: { '0%, 100%': { backgroundColor: 'rgba(239, 68, 68, 0.2)' }, '50%': { backgroundColor: 'rgba(239, 68, 68, 0.5)' } }
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- React & Dependencies -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    
+    <!-- Recharts Dependencies (Load Prop-Types first) -->
+    <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+    <script src="https://unpkg.com/recharts@2.12.0/umd/Recharts.min.js"></script>
+    
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #001840; color: #FFFDF0; }
+        .scroller::-webkit-scrollbar { width: 8px; }
+        .scroller::-webkit-scrollbar-track { background: #001840; }
+        .scroller::-webkit-scrollbar-thumb { background: #102A71; border-radius: 4px; }
+        .scroller::-webkit-scrollbar-thumb:hover { background: #F5C400; }
+        input, textarea, select { background-color: #0b1f4b; border: 1px solid #1e3a8a; color: #FFFDF0; transition: all 0.3s ease; }
+        input::placeholder, textarea::placeholder { color: #6b7280; }
+        input:focus, textarea:focus, select:focus { outline: none; border-color: #F5C400; box-shadow: 0 0 0 3px rgba(245, 196, 0, 0.15); background-color: #102A71; }
+        input[type="checkbox"], input[type="radio"] { accent-color: #F5C400; }
+        /* Disable copy paste class */
+        .no-copy { -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; }
+    </style>
+</head>
+<body class="bg-navy text-cream selection:bg-gold-light selection:text-navy min-h-screen">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useMemo } = React;
+        
+        // --- SAFE RECHARTS LOADING ---
+        const Recharts = window.Recharts || {};
+        const { 
+            BarChart = () => <div className="text-slate-500 text-xs p-4 text-center">Charts unavailable</div>, 
+            Bar = () => null, 
+            XAxis = () => null, 
+            YAxis = () => null, 
+            Tooltip = () => null, 
+            ResponsiveContainer = ({children}) => <div className="w-full h-full">{children}</div>, 
+            CartesianGrid = () => null 
+        } = Recharts;
+
+        // --- ICONS ---
+        const Icon = ({ size = 20, className="", ...props }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props} />
+        );
+        const Icons = {
+            Shield: (p) => <Icon {...p}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></Icon>,
+            Book: (p) => <Icon {...p}><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></Icon>,
+            Users: (p) => <Icon {...p}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></Icon>,
+            Plus: (p) => <Icon {...p}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></Icon>,
+            Trash: (p) => <Icon {...p}><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></Icon>,
+            Eye: (p) => <Icon {...p}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></Icon>,
+            Download: (p) => <Icon {...p}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></Icon>,
+            Check: (p) => <Icon {...p}><polyline points="20 6 9 17 4 12"/></Icon>,
+            Play: (p) => <Icon {...p}><polygon points="5 3 19 12 5 21 5 3"/></Icon>,
+            LogOut: (p) => <Icon {...p}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></Icon>,
+            Cloud: (p) => <Icon {...p}><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></Icon>,
+            X: (p) => <Icon {...p}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></Icon>,
+            Edit: (p) => <Icon {...p}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></Icon>,
+            AlertTriangle: (p) => <Icon {...p}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></Icon>,
+            Lock: (p) => <Icon {...p}><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></Icon>,
+            Clock: (p) => <Icon {...p}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></Icon>,
+            ThumbsUp: (p) => <Icon {...p}><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></Icon>,
+            ThumbsDown: (p) => <Icon {...p}><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></Icon>,
+            ChevronRight: (p) => <Icon {...p}><polyline points="9 18 15 12 9 6" /></Icon>,
+            Map: (p) => <Icon {...p}><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></Icon>,
+            Info: (p) => <Icon {...p}><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></Icon>,
+            FileSpreadsheet: (p) => <Icon {...p}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></Icon>,
+            Calculator: (p) => <Icon {...p}><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="16" y1="14" x2="16" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></Icon>,
+            Image: (p) => <Icon {...p}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></Icon>,
+            Calendar: (p) => <Icon {...p}><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></Icon>,
+            Shuffle: (p) => <Icon {...p}><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></Icon>,
+            BarChart: (p) => <Icon {...p}><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></Icon>,
+            Save: (p) => <Icon {...p}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></Icon>,
+            FileText: (p) => <Icon {...p}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></Icon>,
+        };
+
+        // --- CONFIG ---
+        const FIREBASE_CONFIG = {
+            apiKey: "AIzaSyCrpCFcwF9TtVMOzi2zNJYv-IVYKENC_i4",
+            authDomain: "gnhs-online-exam-solution.firebaseapp.com",
+            databaseURL: "https://gnhs-online-exam-solution-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "gnhs-online-exam-solution",
+            storageBucket: "gnhs-online-exam-solution.firebasestorage.app",
+            messagingSenderId: "582595227570",
+            appId: "1:582595227570:web:b912bc8c007248a085feab",
+            measurementId: "G-RSTERRCZ19"
+        };
+        const AUTHORIZED_TEACHERS = [
+            "alvin.alfonso1262@gmail.com", "alvin.alfonso2222@gmail.com", 
+            "mitchie.alfonso@deped.gov.ph", "mitchiealfonso12@gmail.com", "alvina.rhss@gmail.com"
+        ];
+        const ALLOWED_YEARS = ["7", "8", "9", "10", "11", "12"];
+        const QUESTION_TYPES_ORDER = [
+            { type: 'multiple_choice', title: 'I. Multiple Choice' },
+            { type: 'true_false', title: 'II. True or False' },
+            { type: 'identification', title: 'III. Identification' },
+            { type: 'essay', title: 'IV. Essay' }
+        ];
+
+        if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+        const auth = firebase.auth();
+        const db = firebase.database();
+
+        // --- HELPERS ---
+        const calculateScore = (submission, examData) => {
+            if (!examData || !examData.questions) return "N/A";
+            let score = 0;
+            let max = 0; 
+            const questions = Array.isArray(examData.questions) ? examData.questions : Object.values(examData.questions || {});
+            questions.forEach(q => {
+                const points = q.points || 1;
+                max += points;
+                if (submission.manualGrades && submission.manualGrades[q.id] !== undefined) {
+                    score += submission.manualGrades[q.id];
+                    return;
+                }
+                const studentAns = submission.answers[q.id]?.value || submission.answers[q.id];
+                const ansValue = typeof studentAns === 'object' ? studentAns?.value : studentAns;
+
+                if (!ansValue) return;
+
+                if (q.type === 'multiple_choice' || q.type === 'true_false') {
+                    if (ansValue === q.correctAnswer) score += points;
+                } else if (q.type === 'identification') {
+                    if (q.correctAnswer && ansValue.trim().toLowerCase() === q.correctAnswer.trim().toLowerCase()) score += points;
+                }
+            });
+            return { score, max, formatted: max > 0 ? `${score}/${max}` : "Manual" };
+        };
+
+        const fileToBase64 = (file) => new Promise((resolve, reject) => {
+            if (file.size > 7 * 1024 * 1024) {
+                alert("File size exceeds 7MB limit.");
+                reject("File too large");
+                return;
+            }
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = error => reject(error);
+        });
+
+        const shuffleArray = (array) => {
+            let currentIndex = array.length, randomIndex;
+            while (currentIndex !== 0) {
+                randomIndex = Math.floor(Math.random() * currentIndex);
+                currentIndex--;
+                [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+            }
+            return array;
+        };
+
+        // --- COMPONENTS ---
+
+        const ImageUpload = ({ onUpload, currentImage, onRemove, label = "Upload Image" }) => {
+            const handleFile = async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                try {
+                    const base64 = await fileToBase64(file);
+                    onUpload(base64);
+                } catch (err) { console.error(err); }
+            };
+            return (
+                <div className="mb-4">
+                    <label className="text-xs text-slate-400 font-bold uppercase block mb-2">{label} (Max 7MB)</label>
+                    {!currentImage ? (
+                        <div className="relative border-2 border-dashed border-navy-lighter rounded-xl hover:border-gold hover:bg-navy-dark transition-all p-4 text-center">
+                            <input type="file" accept="image/*" onChange={handleFile} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                            <div className="text-slate-500 flex flex-col items-center gap-2">
+                                <Icons.Image size={24}/>
+                                <span className="text-xs">Click to upload image</span>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="relative rounded-xl overflow-hidden border border-navy-lighter group">
+                            <img src={currentImage} alt="Uploaded" className="w-full h-40 object-cover" />
+                            <button onClick={onRemove} className="absolute top-2 right-2 bg-red-600 text-white p-1.5 rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"><Icons.Trash size={14}/></button>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const Calculator = ({ onClose }) => {
+            const [display, setDisplay] = useState('0');
+            const [prev, setPrev] = useState(null);
+            const [op, setOp] = useState(null);
+            const [newNum, setNewNum] = useState(true);
+            const handleNum = (num) => { if(newNum) { setDisplay(num); setNewNum(false); } else setDisplay(display === '0' ? num : display + num); };
+            const handleOp = (operator) => { setOp(operator); setPrev(parseFloat(display)); setNewNum(true); };
+            const calculate = () => {
+                if(op && prev !== null) {
+                    const current = parseFloat(display);
+                    let result = 0;
+                    switch(op) { case '+': result = prev + current; break; case '-': result = prev - current; break; case '*': result = prev * current; break; case '/': result = prev / current; break; default: return; }
+                    setDisplay(String(result)); setPrev(null); setOp(null); setNewNum(true);
+                }
+            };
+            const clear = () => { setDisplay('0'); setPrev(null); setOp(null); setNewNum(true); };
+            return (
+                <div className="fixed bottom-4 right-4 w-72 bg-navy-dark border border-gold rounded-2xl shadow-2xl z-50 overflow-hidden animate-slide-up">
+                    <div className="bg-navy-light p-3 flex justify-between items-center border-b border-navy-lighter cursor-grab"><span className="text-gold font-bold flex items-center gap-2"><Icons.Calculator size={16}/> Calculator</span><button onClick={onClose} className="text-slate-400 hover:text-red-400"><Icons.X size={16}/></button></div>
+                    <div className="p-4"><div className="bg-navy p-3 rounded-lg mb-4 text-right text-2xl font-mono text-cream border border-navy-lighter overflow-x-auto">{display}</div><div className="grid grid-cols-4 gap-2">{['7','8','9','/','4','5','6','*','1','2','3','-','0','.','=','+'].map(btn => (<button key={btn} onClick={() => { if(!isNaN(btn) || btn === '.') handleNum(btn); else if(btn === '=') calculate(); else handleOp(btn); }} className={`p-3 rounded-lg font-bold transition-all ${btn === '=' ? 'bg-gold text-navy col-span-2' : ['/','*','-','+'].includes(btn) ? 'bg-navy-light text-gold border border-gold/20' : 'bg-navy text-slate-300 hover:bg-navy-light border border-navy-lighter'}`}>{btn}</button>))} <button onClick={clear} className="col-span-2 p-2 bg-red-900/20 text-red-400 rounded-lg border border-red-900/50 text-xs uppercase font-bold hover:bg-red-900/40">Clear</button></div></div>
+                </div>
+            );
+        };
+
+        const QuestionBank = ({ user, onImport }) => {
+            const [questions, setQuestions] = useState([]);
+            const [search, setSearch] = useState("");
+            const [selectedQs, setSelectedQs] = useState([]);
+
+            useEffect(() => {
+                db.ref(`questionBank/${user.uid}`).on('value', s => {
+                    const data = s.val();
+                    setQuestions(data ? Object.entries(data).map(([k,v]) => ({id: k, ...v})) : []);
+                });
+            }, [user.uid]);
+
+            const deleteQuestion = (qId) => {
+                if(confirm('Delete this question from bank?')) db.ref(`questionBank/${user.uid}/${qId}`).remove();
+            };
+
+            const filtered = questions.filter(q => q.text.toLowerCase().includes(search.toLowerCase()) || q.type.includes(search));
+
+            const toggleSelect = (q) => {
+                if(selectedQs.find(sq => sq.id === q.id)) setSelectedQs(selectedQs.filter(sq => sq.id !== q.id));
+                else setSelectedQs([...selectedQs, q]);
+            };
+
+            return (
+                <div className="bg-navy-light p-6 rounded-2xl shadow-xl border border-navy-lighter h-full flex flex-col">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="font-bold text-cream flex items-center gap-2"><Icons.Cloud size={20} className="text-gold"/> Question Bank</h3>
+                        {onImport && <button onClick={() => onImport(selectedQs)} disabled={selectedQs.length===0} className="bg-gold text-navy px-4 py-2 rounded-lg font-bold text-sm disabled:opacity-50 hover:bg-gold-light">Import ({selectedQs.length})</button>}
+                    </div>
+                    <input className="w-full p-3 rounded-xl mb-4 text-sm bg-navy-dark" placeholder="Search questions..." value={search} onChange={e => setSearch(e.target.value)} />
+                    <div className="flex-1 overflow-y-auto scroller space-y-3">
+                        {filtered.length === 0 ? <p className="text-center text-slate-500 text-sm">No questions found.</p> : 
+                        filtered.map(q => (
+                            <div key={q.id} className={`p-3 rounded-xl border transition-all ${selectedQs.find(sq => sq.id === q.id) ? 'bg-gold/10 border-gold' : 'bg-navy-dark border-navy-lighter hover:border-slate-500'}`}>
+                                <div className="flex justify-between mb-1" onClick={() => toggleSelect(q)}>
+                                    <span className="text-[10px] uppercase font-bold text-slate-400">{q.type.replace('_',' ')}</span>
+                                    <span className="text-[10px] bg-navy text-gold px-1.5 py-0.5 rounded border border-gold/20">{q.points} pts</span>
+                                </div>
+                                <div className="flex justify-between gap-2">
+                                    <p className="text-sm font-medium text-cream line-clamp-2 cursor-pointer flex-1" onClick={() => toggleSelect(q)}>{q.text}</p>
+                                    <button onClick={(e) => {e.stopPropagation(); deleteQuestion(q.id);}} className="text-slate-500 hover:text-red-400 p-1"><Icons.Trash size={14}/></button>
+                                </div>
+                                {q.image && <div className="mt-2"><img src={q.image} className="h-10 rounded object-cover border border-navy-lighter"/></div>}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        const TeacherDashboard = ({ user, teacherName, onLogout }) => {
+            const [view, setView] = useState("list"); 
+            const [exams, setExams] = useState([]);
+            const [newExam, setNewExam] = useState({ 
+                title: "", subject: "", yearLevel: "", 
+                timingType: "duration", 
+                duration: "", scheduleStart: "", scheduleEnd: "",
+                randomizeQuestions: false,
+                questions: [], 
+                instructions: { multiple_choice: '', true_false: '', identification: '', essay: '' } 
+            });
+            const [qType, setQType] = useState("multiple_choice");
+            const [curQ, setCurQ] = useState({ text: "", options: ["","","",""], correctAnswer: "", points: 1, image: null });
+            const [editingQId, setEditingQId] = useState(null);
+            const [editingExamId, setEditingExamId] = useState(null);
+            const [showBankModal, setShowBankModal] = useState(false);
+
+            useEffect(() => {
+                db.ref('exams').orderByChild('teacherEmail').equalTo(user.email).on('value', s => {
+                    const data = s.val();
+                    setExams(data ? Object.entries(data).map(([k,v]) => ({id:k, ...v})).reverse() : []);
+                });
+            }, [user]);
+
+            const saveExam = () => {
+                if(!newExam.title || !newExam.subject || !newExam.yearLevel) return alert("Please fill in details.");
+                if(newExam.questions.length === 0) return alert("Add questions.");
+                
+                const examPayload = { 
+                    ...newExam, 
+                    duration: newExam.timingType === 'duration' && newExam.duration ? parseInt(newExam.duration) : null,
+                    scheduleStart: newExam.timingType === 'scheduled' ? newExam.scheduleStart : null,
+                    scheduleEnd: newExam.timingType === 'scheduled' ? newExam.scheduleEnd : null,
+                    teacherEmail: user.email, 
+                    teacherName: teacherName, 
+                    status: newExam.status || 'draft',
+                    createdAt: newExam.createdAt || new Date().toISOString()
+                };
+
+                if (editingExamId) db.ref(`exams/${editingExamId}`).update(examPayload);
+                else db.ref('exams').push(examPayload);
+                
+                resetCreateForm();
+                setView("list");
+            };
+
+            const resetCreateForm = () => {
+                setNewExam({ title: "", subject: "", yearLevel: "", timingType: "duration", duration: "", scheduleStart: "", scheduleEnd: "", randomizeQuestions: false, questions: [], instructions: { multiple_choice: '', true_false: '', identification: '', essay: '' } });
+                setEditingExamId(null); setEditingQId(null);
+                setCurQ({ text: "", options: ["","","",""], correctAnswer: "", points: 1, image: null });
+            };
+
+            const addToBank = (q) => {
+                if(!q.text) return alert("Empty question");
+                const qData = { ...q, id: Date.now() }; 
+                db.ref(`questionBank/${user.uid}`).push(qData).then(() => alert("Saved to Bank"));
+            };
+
+            const addQuestion = () => {
+                if(!curQ.text && !curQ.image) return;
+                const newQ = { ...curQ, id: editingQId || Date.now(), type: qType };
+                if (editingQId) {
+                    setNewExam(p => ({ ...p, questions: p.questions.map(q => q.id === editingQId ? newQ : q) }));
+                    setEditingQId(null);
+                } else {
+                    setNewExam(p => ({ ...p, questions: [...p.questions, newQ] }));
+                }
+                setCurQ({ text: "", options: ["","","",""], correctAnswer: "", points: 1, image: null });
+            };
+
+            return (
+                <div className="min-h-screen pb-20 bg-navy text-cream">
+                    <header className="bg-navy-light/50 backdrop-blur-md border-b border-navy-lighter sticky top-0 z-20 px-6 py-4 flex justify-between items-center shadow-lg">
+                        <div className="flex items-center gap-3">
+                            <div className="bg-gold text-navy p-2 rounded-lg shadow-[0_0_15px_rgba(245,196,0,0.3)]"><Icons.Shield size={24}/></div>
+                            <div><h1 className="text-xl font-bold tracking-tight">FocusExam</h1><p className="text-xs text-slate-400 font-medium">Teacher Dashboard</p></div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <div className="hidden md:flex flex-col items-end mr-2"><span className="text-sm font-bold">{teacherName}</span><span className="text-xs text-slate-500">{user.email}</span></div>
+                            <button onClick={onLogout} className="text-slate-400 hover:text-red-400 bg-navy-dark p-2 rounded-lg border border-navy-lighter"><Icons.LogOut size={20}/></button>
+                        </div>
+                    </header>
+
+                    <div className="max-w-6xl mx-auto p-6 animate-slide-up">
+                        {view === 'list' && (
+                            <div>
+                                <div className="flex justify-between items-center mb-8">
+                                    <div><h2 className="text-3xl font-bold">My Exams</h2><p className="text-slate-400 mt-1">Manage your course assessments.</p></div>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => setView('bank')} className="bg-navy-light text-cream border border-navy-lighter px-4 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-navy-lighter"><Icons.Cloud size={20}/> Question Bank</button>
+                                        <button onClick={() => { resetCreateForm(); setView('create'); }} className="bg-gold text-navy px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-gold-light shadow-[0_4px_20px_rgba(245,196,0,0.2)]"><Icons.Plus size={20}/> Create Exam</button>
+                                    </div>
+                                </div>
+                                <div className="grid gap-4">
+                                    {exams.map(ex => (
+                                        <div key={ex.id} className="bg-navy-light rounded-2xl p-6 border border-navy-lighter hover:border-gold/50 transition-all flex justify-between items-center">
+                                            <div>
+                                                <h3 className="font-bold text-xl mb-1">{ex.title}</h3>
+                                                <div className="flex gap-2 text-sm text-slate-400">
+                                                    <span className="bg-navy-dark px-2 rounded border border-navy-lighter">{ex.subject}</span>
+                                                    <span className="bg-navy-dark px-2 rounded border border-navy-lighter">{ex.yearLevel}</span>
+                                                    <span className={`px-2 rounded border ${ex.status === 'published' ? 'bg-green-900/20 text-green-400 border-green-800' : 'bg-slate-800 border-slate-700'}`}>{ex.status}</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => {if(ex.status==='published') db.ref(`exams/${ex.id}/status`).set('draft'); else db.ref(`exams/${ex.id}/status`).set('published');}} className="p-2 bg-navy-dark rounded border border-navy-lighter text-slate-400 hover:text-cream" title="Toggle Status"><Icons.Cloud size={18}/></button>
+                                                <button onClick={() => { setEditingExamId(ex.id); setNewExam({...ex, timingType: ex.scheduleStart ? 'scheduled' : (ex.duration ? 'duration' : 'none'), questions: ex.questions || [], instructions: ex.instructions || {} }); setView('create'); }} className="p-2 bg-navy-dark rounded border border-navy-lighter text-slate-400 hover:text-gold" title="Edit"><Icons.Edit size={18}/></button>
+                                                <button onClick={() => { setView('results'); setEditingExamId(ex.id); }} className="p-2 bg-navy-dark rounded border border-navy-lighter text-slate-400 hover:text-blue-400" title="Results"><Icons.BarChart size={18}/></button>
+                                                <button onClick={() => {if(confirm("Delete?")) db.ref(`exams/${ex.id}`).remove();}} className="p-2 bg-navy-dark rounded border border-navy-lighter text-slate-400 hover:text-red-400" title="Delete"><Icons.Trash size={18}/></button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {view === 'bank' && (
+                            <div className="h-[80vh]">
+                                <button onClick={() => setView('list')} className="mb-4 text-slate-400 hover:text-cream flex items-center gap-1"><Icons.ChevronRight className="rotate-180"/> Back to Exams</button>
+                                <QuestionBank user={user} />
+                            </div>
+                        )}
+
+                        {view === 'results' && <ResultsDashboard examId={editingExamId} onClose={() => setView('list')} />}
+
+                        {view === 'create' && (
+                            <div>
+                                <button onClick={() => { resetCreateForm(); setView('list'); }} className="mb-6 flex items-center gap-2 text-slate-400 hover:text-cream font-medium"><Icons.X size={18}/> Cancel & Return</button>
+                                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                                    <div className="lg:col-span-4 space-y-6">
+                                        <div className="bg-navy-light p-6 rounded-2xl shadow-xl border border-navy-lighter">
+                                            <h3 className="font-bold text-cream mb-6 flex items-center gap-2 pb-4 border-b border-navy-lighter"><Icons.Book size={20} className="text-gold"/> Exam Details</h3>
+                                            <div className="space-y-4">
+                                                <input className="w-full p-3 rounded-xl text-sm" placeholder="Title" value={newExam.title} onChange={e => setNewExam({...newExam, title: e.target.value})} />
+                                                <input className="w-full p-3 rounded-xl text-sm" placeholder="Subject" value={newExam.subject} onChange={e => setNewExam({...newExam, subject: e.target.value})} />
+                                                <select className="w-full p-3 rounded-xl text-sm" value={newExam.yearLevel} onChange={e => setNewExam({...newExam, yearLevel: e.target.value})}>
+                                                    <option value="">Year Level...</option>
+                                                    {ALLOWED_YEARS.map(y => <option key={y} value={`Grade ${y}`}>Grade {y}</option>)}
+                                                </select>
+                                                
+                                                <div className="pt-4 border-t border-navy-lighter">
+                                                    <label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Timing & Schedule</label>
+                                                    <div className="flex gap-2 mb-3 bg-navy-dark p-1 rounded-lg">
+                                                        {['duration','scheduled','none'].map(t => (
+                                                            <button key={t} onClick={()=>setNewExam({...newExam, timingType: t})} className={`flex-1 py-1.5 text-[10px] font-bold uppercase rounded ${newExam.timingType === t ? 'bg-navy-light text-gold shadow' : 'text-slate-500'}`}>{t}</button>
+                                                        ))}
+                                                    </div>
+                                                    {newExam.timingType === 'duration' && <input type="number" className="w-full p-3 rounded-xl text-sm" placeholder="Duration (Minutes)" value={newExam.duration} onChange={e => setNewExam({...newExam, duration: e.target.value})} />}
+                                                    {newExam.timingType === 'scheduled' && (
+                                                        <div className="space-y-2">
+                                                            <div className="flex flex-col"><span className="text-[10px] text-slate-500 uppercase">Start</span><input type="datetime-local" className="p-2 rounded-lg text-xs" value={newExam.scheduleStart} onChange={e => setNewExam({...newExam, scheduleStart: e.target.value})} /></div>
+                                                            <div className="flex flex-col"><span className="text-[10px] text-slate-500 uppercase">End</span><input type="datetime-local" className="p-2 rounded-lg text-xs" value={newExam.scheduleEnd} onChange={e => setNewExam({...newExam, scheduleEnd: e.target.value})} /></div>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <label className="flex items-center gap-3 p-3 bg-navy-dark rounded-xl border border-navy-lighter cursor-pointer">
+                                                    <input type="checkbox" checked={newExam.randomizeQuestions} onChange={e => setNewExam({...newExam, randomizeQuestions: e.target.checked})} />
+                                                    <div className="text-sm"><span className="block font-bold text-cream">Randomize Questions</span><span className="text-xs text-slate-500">Shuffle within sections</span></div>
+                                                    <Icons.Shuffle size={16} className="ml-auto text-slate-500"/>
+                                                </label>
+
+                                                <div className="pt-4 border-t border-navy-lighter">
+                                                    <label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Section Instructions</label>
+                                                    <div className="space-y-2">
+                                                        {QUESTION_TYPES_ORDER.map(t => (
+                                                            <div key={t.type}>
+                                                                <span className="text-[10px] uppercase text-gold">{t.title}</span>
+                                                                <textarea className="w-full p-2 mt-1 rounded-lg text-xs bg-navy-dark border border-navy-lighter" rows="2" placeholder={`Instructions for ${t.title}...`} value={newExam.instructions[t.type]} onChange={e => setNewExam({...newExam, instructions: {...newExam.instructions, [t.type]: e.target.value}})}></textarea>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <button onClick={saveExam} className="w-full bg-gold text-navy py-4 rounded-xl font-bold shadow-lg shadow-gold/20 hover:bg-gold-light flex justify-center gap-2"><Icons.Check size={20}/> {editingExamId ? 'Update Exam' : 'Save Draft'}</button>
+                                    </div>
+
+                                    <div className="lg:col-span-8 space-y-6">
+                                        <div className={`bg-navy-light p-6 rounded-2xl shadow-xl border ${editingQId ? 'border-gold shadow-gold/10' : 'border-navy-lighter'}`}>
+                                            <div className="flex justify-between items-center mb-4">
+                                                <h3 className="font-bold text-cream">{editingQId ? 'Edit Question' : 'Add Question'}</h3>
+                                                <div className="flex gap-2">
+                                                    <button onClick={() => setShowBankModal(true)} className="text-xs bg-navy-dark text-cream px-3 py-1.5 rounded-lg border border-navy-lighter hover:border-gold flex items-center gap-1"><Icons.Cloud size={14}/> Import from Bank</button>
+                                                    <button onClick={() => addToBank({...curQ, type: qType})} className="text-xs bg-navy-dark text-gold px-3 py-1.5 rounded-lg border border-navy-lighter hover:border-gold flex items-center gap-1"><Icons.Save size={14}/> Save to Bank</button>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex gap-2 mb-4 bg-navy-dark p-1.5 rounded-xl border border-navy-lighter">
+                                                {['multiple_choice', 'true_false', 'identification', 'essay'].map(t => (
+                                                    <button key={t} onClick={() => setQType(t)} className={`flex-1 py-2 text-[10px] font-bold uppercase rounded-lg transition-all ${qType === t ? 'bg-gold text-navy shadow-lg' : 'text-slate-500 hover:text-slate-300 hover:bg-navy-light'}`}>{t.replace('_', ' ').substring(0,8)}</button>
+                                                ))}
+                                            </div>
+                                            
+                                            <textarea className="w-full p-4 rounded-xl text-sm h-24 mb-4 resize-none" placeholder="Question text..." value={curQ.text} onChange={e => setCurQ({...curQ, text: e.target.value})}></textarea>
+                                            <ImageUpload currentImage={curQ.image} onUpload={(b64) => setCurQ({...curQ, image: b64})} onRemove={() => setCurQ({...curQ, image: null})} label="Question Image" />
+
+                                            {(qType === 'identification' || qType === 'essay') && (
+                                                <div className="mb-4">
+                                                    <label className="text-xs text-slate-400 font-bold uppercase block mb-2">Points</label>
+                                                    <input type="number" min="1" className="w-full p-3 rounded-xl text-sm" value={curQ.points} onChange={e => setCurQ({...curQ, points: parseInt(e.target.value) || 1})}/>
+                                                </div>
+                                            )}
+
+                                            {qType === 'multiple_choice' && (
+                                                <div className="space-y-3 mb-4">
+                                                    <p className="text-xs text-slate-400 font-bold uppercase">Options</p>
+                                                    {curQ.options.map((o, i) => (
+                                                        <div key={i} className={`flex items-center gap-3 p-2 rounded-xl border ${curQ.correctAnswer === o && o !== "" ? 'bg-gold/10 border-gold' : 'border-transparent'}`}>
+                                                            <input type="radio" name="correct_opt" className="w-5 h-5" checked={curQ.correctAnswer === o && o !== ""} onChange={() => setCurQ({...curQ, correctAnswer: o})} disabled={!o}/>
+                                                            <input className="flex-1 p-3 rounded-lg text-sm bg-navy-dark border border-navy-lighter focus:border-gold" placeholder={`Option ${i+1}`} value={o} onChange={e => { const n = [...curQ.options]; n[i] = e.target.value; if(curQ.correctAnswer === curQ.options[i]) setCurQ({...curQ, options: n, correctAnswer: e.target.value}); else setCurQ({...curQ, options: n}); }}/>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {qType === 'true_false' && (
+                                                <div className="flex gap-4 mb-4">
+                                                    {['True', 'False'].map(opt => (
+                                                        <label key={opt} className={`flex-1 p-4 border rounded-xl cursor-pointer flex items-center justify-center gap-3 ${curQ.correctAnswer === opt ? 'bg-gold text-navy border-gold font-bold' : 'bg-navy-dark border-navy-lighter text-slate-400'}`}>
+                                                            <input type="radio" name="tf_correct" className="hidden" checked={curQ.correctAnswer === opt} onChange={() => setCurQ({...curQ, correctAnswer: opt})} />
+                                                            {opt}
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {qType === 'identification' && <input className="w-full p-3 rounded-xl text-sm mb-4" placeholder="Correct Answer Key" value={curQ.correctAnswer} onChange={e => setCurQ({...curQ, correctAnswer: e.target.value})} />}
+
+                                            <div className="flex gap-3 pt-4 border-t border-navy-lighter">
+                                                {editingQId && <button onClick={() => {setEditingQId(null); setCurQ({ text: "", options: ["","","",""], correctAnswer: "", points: 1, image: null });}} className="px-6 py-3 rounded-xl font-bold text-slate-400 bg-navy-dark border border-navy-lighter">Cancel</button>}
+                                                <button onClick={addQuestion} className={`flex-1 py-3 rounded-xl font-bold text-navy shadow-lg transition-all ${editingQId ? 'bg-gold' : 'bg-cream hover:bg-white'}`}>{editingQId ? 'Update Question' : 'Add Question'}</button>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-4">
+                                            {newExam.questions.map((q, idx) => (
+                                                <div key={q.id} className="p-4 border border-navy-lighter bg-navy-dark rounded-xl flex gap-4 group">
+                                                    <span className="w-6 h-6 bg-navy-light text-slate-400 rounded-full flex items-center justify-center text-xs border border-navy-lighter">{idx+1}</span>
+                                                    <div className="flex-1">
+                                                        <div className="flex justify-between">
+                                                            <p className="font-medium text-cream text-sm">{q.text}</p>
+                                                            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                <button onClick={() => { setCurQ(q); setQType(q.type); setEditingQId(q.id); }} className="text-gold"><Icons.Edit size={14}/></button>
+                                                                <button onClick={() => setNewExam(p => ({ ...p, questions: p.questions.filter(x => x.id !== q.id) }))} className="text-red-400"><Icons.Trash size={14}/></button>
+                                                            </div>
+                                                        </div>
+                                                        {q.image && <img src={q.image} className="h-12 mt-2 rounded border border-navy-lighter"/>}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                    {showBankModal && (
+                        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+                            <div className="bg-navy-light w-full max-w-2xl h-[70vh] rounded-2xl flex flex-col p-6">
+                                <div className="flex justify-between mb-4"><h3 className="font-bold text-lg">Import from Bank</h3><button onClick={() => setShowBankModal(false)}><Icons.X/></button></div>
+                                <div className="flex-1 overflow-hidden"><QuestionBank user={user} onImport={(qs) => { setNewExam(p => ({ ...p, questions: [...p.questions, ...qs.map(q => ({...q, id: Date.now() + Math.random()}))] })); setShowBankModal(false); }} /></div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const ResultsDashboard = ({ examId, onClose }) => {
+            const [subs, setSubs] = useState([]);
+            const [examData, setExamData] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [gradingSubId, setGradingSubId] = useState(null); 
+
+            useEffect(() => {
+                db.ref(`exams/${examId}`).once('value').then(s => setExamData(s.val()));
+                db.ref('submissions').orderByChild('examId').equalTo(examId).on('value', s => {
+                    setSubs(s.val() ? Object.entries(s.val()).map(([k,v]) => ({id:k, ...v})) : []);
+                    setLoading(false);
+                });
+            }, [examId]);
+
+            const handleExport = () => {
+                const header = ["Student", "Score", ...examData.questions.map((q, i) => `Q${i+1}`)];
+                const data = subs.map(s => [s.studentName, calculateScore(s, examData).formatted, ...examData.questions.map(q => typeof s.answers[q.id] === 'object' ? (s.answers[q.id].value || '[Image]') : (s.answers[q.id] || ''))]);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([header, ...data]), "Results");
+                XLSX.writeFile(wb, "Results.xlsx");
+            };
+
+            const gradingSub = subs.find(s => s.id === gradingSubId);
+
+            return (
+                <div className="fixed inset-0 z-50 bg-navy/80 backdrop-blur-md flex items-center justify-center p-4">
+                    <div className="bg-navy-light rounded-2xl shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col border border-navy-lighter">
+                        <div className="p-6 border-b border-navy-lighter flex justify-between items-center bg-navy-dark/30">
+                            <h2 className="text-xl font-bold text-cream">Results: {examData?.title}</h2>
+                            <div className="flex gap-2"><button onClick={handleExport} className="bg-green-600 px-3 py-1.5 rounded text-sm font-bold flex gap-1 items-center text-white"><Icons.FileSpreadsheet size={14}/> Export</button><button onClick={onClose}><Icons.X/></button></div>
+                        </div>
+                        <div className="flex-1 overflow-auto p-6 scroller bg-navy">
+                             <table className="w-full text-left text-sm border-separate border-spacing-y-2">
+                                <thead className="text-slate-500 font-semibold uppercase text-xs"><tr><th className="p-4">Student</th><th className="p-4">Score</th><th className="p-4">Integrity</th><th className="p-4">Action</th></tr></thead>
+                                <tbody>{subs.map(s => (
+                                    <tr key={s.id} className="bg-navy-light hover:bg-navy-lighter rounded-xl">
+                                        <td className="p-4 font-bold border-y border-l border-navy-lighter rounded-l-xl">{s.studentName}</td>
+                                        <td className="p-4 text-gold font-bold border-y border-navy-lighter">{calculateScore(s, examData).formatted}</td>
+                                        <td className="p-4 border-y border-navy-lighter"><span className={`px-2 py-1 rounded text-xs border ${s.cheatStats?.count > 0 ? 'bg-red-900/20 text-red-400 border-red-900' : 'bg-green-900/20 text-green-400 border-green-900'}`}>{s.cheatStats?.count || 0} Flags</span></td>
+                                        <td className="p-4 border-y border-r border-navy-lighter rounded-r-xl"><button onClick={()=>setGradingSubId(s.id)} className="bg-gold text-navy px-3 py-1 rounded font-bold text-xs">Grade</button></td>
+                                    </tr>
+                                ))}</tbody>
+                            </table>
+                        </div>
+                    </div>
+                    {gradingSub && (
+                        <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-4">
+                            <div className="bg-navy-light w-full max-w-4xl h-[90vh] flex flex-col rounded-2xl border border-navy-lighter">
+                                <div className="p-4 border-b border-navy-lighter flex justify-between"><h3 className="font-bold">{gradingSub.studentName}</h3><button onClick={()=>setGradingSubId(null)}><Icons.X/></button></div>
+                                <div className="flex-1 overflow-y-auto p-6 space-y-4 scroller">
+                                    {examData.questions.map((q, i) => {
+                                        const ansObj = gradingSub.answers[q.id];
+                                        const ansVal = typeof ansObj === 'object' ? ansObj?.value : ansObj;
+                                        const ansImg = typeof ansObj === 'object' ? ansObj?.image : null;
+                                        const manual = gradingSub.manualGrades?.[q.id];
+                                        return (
+                                            <div key={q.id} className="p-4 bg-navy-dark rounded-xl border border-navy-lighter">
+                                                <p className="font-bold text-sm mb-2 text-slate-400">Q{i+1}: {q.text}</p>
+                                                {q.image && <img src={q.image} className="h-20 mb-2 rounded border border-navy-lighter"/>}
+                                                <div className="bg-navy p-3 rounded border border-navy-lighter mb-2">
+                                                    <p className="text-cream">{ansVal || <i className="text-slate-500">No text answer</i>}</p>
+                                                    {ansImg && <img src={ansImg} className="mt-2 max-h-40 rounded border border-navy-lighter"/>}
+                                                </div>
+                                                <div className="flex justify-end gap-2 items-center">
+                                                    <span className="text-xs text-slate-500 uppercase">Score (Max {q.points}):</span>
+                                                    <input type="number" className="w-16 p-1 text-center rounded bg-navy border border-navy-lighter" value={manual !== undefined ? manual : ""} placeholder="Auto" onChange={e => db.ref(`submissions/${gradingSub.id}/manualGrades/${q.id}`).set(parseInt(e.target.value)||0)} />
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const StudentProgress = ({ uid, onBack }) => {
+            const [data, setData] = useState([]);
+            const [reviewSubId, setReviewSubId] = useState(null);
+            const [fullSubmissions, setFullSubmissions] = useState([]);
+            
+            useEffect(() => {
+                db.ref('submissions').orderByChild('uid').equalTo(uid).once('value', async s => {
+                    const subs = s.val() ? Object.values(s.val()) : [];
+                    const enriched = await Promise.all(subs.map(async sub => {
+                        const examSnap = await db.ref(`exams/${sub.examId}`).once('value');
+                        const examData = examSnap.val();
+                        const { score, max } = calculateScore(sub, examData);
+                        return {
+                            ...sub,
+                            name: sub.examTitle,
+                            score: score,
+                            total: max,
+                            examData: examData,
+                            date: new Date(sub.submittedAt).toLocaleDateString(),
+                            percentage: max > 0 ? (score/max)*100 : 0
+                        };
+                    }));
+                    setData(enriched);
+                    setFullSubmissions(enriched);
+                });
+            }, [uid]);
+
+            const reviewSub = fullSubmissions.find(s => s.id === reviewSubId);
+
+            return (
+                <div className="min-h-screen bg-navy p-4 md:p-8">
+                    <div className="max-w-4xl mx-auto">
+                        <button onClick={onBack} className="mb-6 text-slate-400 hover:text-cream flex items-center gap-2"><Icons.ChevronRight className="rotate-180"/> Back to Lobby</button>
+                        <h2 className="text-3xl font-bold text-cream mb-6">My Progress</h2>
+                        
+                        <div className="bg-navy-light p-6 rounded-2xl border border-navy-lighter shadow-xl mb-8">
+                            <h3 className="font-bold text-gold mb-4 flex items-center gap-2"><Icons.BarChart/> Performance Trend</h3>
+                            <div className="h-64 w-full flex items-center justify-center">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={data}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#1e3a8a" />
+                                        <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} />
+                                        <YAxis stroke="#94a3b8" fontSize={12} />
+                                        <Tooltip contentStyle={{backgroundColor: '#001840', borderColor: '#F5C400', color: '#FFF'}} cursor={{fill: '#102A71'}} />
+                                        <Bar dataKey="percentage" name="Score %" fill="#F5C400" radius={[4, 4, 0, 0]} />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+
+                        <div className="grid gap-4">
+                            {data.map((item, i) => (
+                                <div key={i} className="bg-navy-light p-4 rounded-xl border border-navy-lighter flex justify-between items-center">
+                                    <div>
+                                        <h4 className="font-bold text-cream">{item.name}</h4>
+                                        <p className="text-xs text-slate-500">{item.date}</p>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                        <div className="text-right">
+                                            <p className="text-xl font-bold text-gold">{item.score}/{item.total}</p>
+                                            <p className="text-xs text-slate-400">{item.percentage.toFixed(1)}%</p>
+                                        </div>
+                                        <button onClick={() => setReviewSubId(item.id)} className="p-2 bg-navy-dark border border-navy-lighter rounded-lg text-slate-300 hover:text-gold"><Icons.Eye size={16}/></button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    {reviewSub && (
+                        <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-4">
+                            <div className="bg-navy-light w-full max-w-4xl h-[90vh] flex flex-col rounded-2xl border border-navy-lighter">
+                                <div className="p-4 border-b border-navy-lighter flex justify-between"><h3 className="font-bold">Review: {reviewSub.examTitle}</h3><button onClick={()=>setReviewSubId(null)}><Icons.X/></button></div>
+                                <div className="flex-1 overflow-y-auto p-6 space-y-4 scroller">
+                                    {reviewSub.examData.questions.map((q, i) => {
+                                        const ansObj = reviewSub.answers[q.id];
+                                        const ansVal = typeof ansObj === 'object' ? ansObj?.value : ansObj;
+                                        const ansImg = typeof ansObj === 'object' ? ansObj?.image : null;
+                                        return (
+                                            <div key={q.id} className="p-4 bg-navy-dark rounded-xl border border-navy-lighter">
+                                                <p className="font-bold text-sm mb-2 text-slate-400">Q{i+1}: {q.text}</p>
+                                                {q.image && <img src={q.image} className="h-20 mb-2 rounded border border-navy-lighter"/>}
+                                                <div className="bg-navy p-3 rounded border border-navy-lighter mb-2">
+                                                    <p className="text-xs text-slate-500 uppercase mb-1">Your Answer:</p>
+                                                    <p className="text-cream">{ansVal || <i className="text-slate-500">No answer</i>}</p>
+                                                    {ansImg && <img src={ansImg} className="mt-2 max-h-40 rounded border border-navy-lighter"/>}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const StudentPortal = ({ onBack }) => {
+            const [status, setStatus] = useState("loading"); 
+            const [loginUser, setLoginUser] = useState(null);
+            const [profileData, setProfileData] = useState(null);
+            const [exams, setExams] = useState([]);
+            const [mySubmissions, setMySubmissions] = useState([]);
+            const [activeExam, setActiveExam] = useState(null);
+            const [studentName, setStudentName] = useState("");
+            const [answers, setAnswers] = useState({});
+            const [cheatCount, setCheatCount] = useState(0);
+            const [timeLeft, setTimeLeft] = useState(null);
+            const [agreed, setAgreed] = useState(false);
+            const [showCalc, setShowCalc] = useState(false);
+            
+            const isSubmittingRef = useRef(false);
+            const [shuffledQuestions, setShuffledQuestions] = useState([]);
+
+            const handleLogin = () => {
+                auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).then(res => {
+                    setLoginUser(res.user);
+                    setStudentName(res.user.displayName || "");
+                }).catch(e => alert(e.message));
+            };
+
+            useEffect(() => {
+                if(!loginUser) return;
+                db.ref(`students/${loginUser.uid}`).once('value').then(s => {
+                    if(s.val()?.yearLevel) { setProfileData(s.val()); setStatus('lobby'); }
+                    else setStatus('onboarding');
+                });
+                // Fetch submissions to prevent retakes
+                db.ref('submissions').orderByChild('uid').equalTo(loginUser.uid).on('value', s => {
+                    setMySubmissions(s.val() ? Object.values(s.val()) : []);
+                });
+            }, [loginUser]);
+
+            useEffect(() => {
+                db.ref('exams').orderByChild('status').equalTo('published').on('value', s => {
+                    const data = s.val();
+                    if(data) setExams(Object.entries(data).map(([k,v]) => ({id:k, ...v})));
+                });
+            }, []);
+
+            // Cheat Detection & Tab Close Protection
+            useEffect(() => {
+                if (status !== 'taking') {
+                    window.onbeforeunload = null;
+                    return;
+                }
+                
+                window.onbeforeunload = (e) => {
+                    e.preventDefault();
+                    e.returnValue = '';
+                };
+
+                const handleVisibility = () => {
+                    if (document.hidden && !isSubmittingRef.current) {
+                        setCheatCount(c => c + 1);
+                        alert("⚠️ Academic Integrity Warning: Tab switching detected.");
+                    }
+                };
+                
+                document.addEventListener("visibilitychange", handleVisibility);
+                return () => {
+                    document.removeEventListener("visibilitychange", handleVisibility);
+                    window.onbeforeunload = null;
+                };
+            }, [status]);
+
+            // Timer
+            useEffect(() => {
+                let timerId;
+                if (status === 'taking' && activeExam && activeExam.timingType !== 'none') {
+                    timerId = setInterval(() => {
+                        setTimeLeft(prev => {
+                            if (prev !== null && prev <= 1) {
+                                clearInterval(timerId);
+                                submitFinal(true);
+                                return 0;
+                            }
+                            return prev !== null ? prev - 1 : null;
+                        });
+                    }, 1000);
+                }
+                return () => clearInterval(timerId);
+            }, [status, activeExam]);
+
+            const startExamSetup = (exam) => {
+                if (exam.timingType === 'scheduled') {
+                    const now = new Date();
+                    const start = new Date(exam.scheduleStart);
+                    const end = new Date(exam.scheduleEnd);
+                    if (now < start) return alert(`Exam starts at ${start.toLocaleString()}`);
+                    if (now > end) return alert(`Exam expired at ${end.toLocaleString()}`);
+                }
+                
+                let qs = exam.questions || [];
+                if (exam.randomizeQuestions) {
+                    const grouped = {};
+                    qs.forEach(q => { if(!grouped[q.type]) grouped[q.type] = []; grouped[q.type].push(q); });
+                    let finalQs = [];
+                    QUESTION_TYPES_ORDER.forEach(t => {
+                        if(grouped[t.type]) finalQs = [...finalQs, ...shuffleArray([...grouped[t.type]])];
+                    });
+                    setShuffledQuestions(finalQs);
+                } else {
+                    setShuffledQuestions(qs);
+                }
+
+                setActiveExam(exam);
+                setStatus('ready');
+            };
+
+            const beginTest = () => {
+                if (!agreed || !studentName) return alert("Complete requirements.");
+                
+                if (activeExam.timingType === 'duration') {
+                    setTimeLeft(activeExam.duration * 60);
+                } else if (activeExam.timingType === 'scheduled') {
+                    const end = new Date(activeExam.scheduleEnd).getTime();
+                    const now = Date.now();
+                    const secondsLeft = Math.floor((end - now) / 1000);
+                    setTimeLeft(secondsLeft > 0 ? secondsLeft : 0);
+                } else {
+                    setTimeLeft(null);
+                }
+                
+                setStatus('taking');
+            };
+
+            const submitFinal = (auto = false) => {
+                if (isSubmittingRef.current) return;
+                if (!auto && !confirm("Submit Answers?")) return;
+                
+                isSubmittingRef.current = true; 
+                setStatus('submitting'); 
+
+                db.ref('submissions').push({
+                    uid: loginUser.uid,
+                    examId: activeExam.id,
+                    examTitle: activeExam.title,
+                    studentName: studentName,
+                    answers: answers,
+                    cheatStats: { count: cheatCount },
+                    submittedAt: new Date().toISOString(),
+                    teacherName: activeExam.teacherName
+                }).then(() => {
+                    setStatus('submitted');
+                    isSubmittingRef.current = false;
+                });
+            };
+
+            const setAnswerVal = (qId, val) => {
+                setAnswers(prev => ({ ...prev, [qId]: { ...(prev[qId] || {}), value: val } }));
+            };
+
+            const setAnswerImg = (qId, b64) => {
+                setAnswers(prev => ({ ...prev, [qId]: { ...(prev[qId] || {}), image: b64 } }));
+            };
+
+            if (!loginUser) return (
+                <div className="min-h-screen flex items-center justify-center p-4 bg-navy">
+                    <div className="bg-navy-light p-10 rounded-3xl shadow-2xl max-w-sm w-full border border-navy-lighter relative">
+                        <button onClick={onBack} className="absolute top-6 left-6 text-slate-500 hover:text-cream"><Icons.X/></button>
+                        <div className="text-center mb-8"><h2 className="text-3xl font-bold text-cream mb-2">Student Portal</h2><p className="text-slate-400">Login to access your exams</p></div>
+                        <button onClick={handleLogin} className="w-full bg-cream text-navy py-4 rounded-xl font-bold hover:bg-white shadow-lg flex items-center justify-center gap-3"><span>Sign in with Google</span></button>
+                    </div>
+                </div>
+            );
+
+            if (status === 'onboarding') return (
+                <div className="min-h-screen flex items-center justify-center bg-navy">
+                    <div className="bg-navy-light p-8 rounded-3xl max-w-md w-full border border-navy-lighter">
+                        <h2 className="text-2xl font-bold mb-4">Setup Profile</h2>
+                        <label className="block text-xs font-bold text-gold uppercase mb-2">Year Level</label>
+                        <div className="space-y-2 mb-6">
+                            {ALLOWED_YEARS.map(y => <button key={y} onClick={()=>{db.ref(`students/${loginUser.uid}`).update({yearLevel:`Grade ${y}`}).then(()=>{ setProfileData({yearLevel:`Grade ${y}`}); setStatus('lobby');});}} className="w-full p-3 rounded-xl bg-navy-dark border border-navy-lighter hover:border-gold text-left">Grade {y}</button>)}
+                        </div>
+                    </div>
+                </div>
+            );
+
+            if (status === 'lobby') return (
+                <div className="min-h-screen p-4 bg-navy relative overflow-hidden flex flex-col items-center">
+                    <div className="max-w-md w-full bg-navy-light/80 backdrop-blur-xl rounded-3xl shadow-2xl p-8 border border-navy-lighter relative z-10">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-2xl font-bold text-cream">Exam Lobby</h2>
+                            <button onClick={onBack} className="text-slate-500 hover:text-cream"><Icons.LogOut/></button>
+                        </div>
+                        <div className="flex justify-between items-center mb-8 bg-navy-dark p-3 rounded-xl border border-navy-lighter">
+                            <div><p className="text-xs font-bold text-slate-500 uppercase">Student</p><p className="font-bold text-cream">{loginUser.displayName}</p></div>
+                            <button onClick={()=>setStatus('progress')} className="bg-gold text-navy px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gold-light flex items-center gap-1"><Icons.BarChart size={14}/> Progress</button>
+                        </div>
+                        
+                        <div className="space-y-4">
+                            {exams.filter(e => e.yearLevel === profileData?.yearLevel).map(ex => {
+                                const isTaken = mySubmissions.find(s => s.examId === ex.id);
+                                return (
+                                    <button key={ex.id} onClick={() => !isTaken && startExamSetup(ex)} disabled={isTaken} className={`w-full p-5 rounded-2xl text-left border transition-all group ${isTaken ? 'bg-navy-dark/50 border-navy-lighter opacity-60 cursor-not-allowed' : 'bg-navy-dark border-navy-lighter hover:border-gold/50 hover:shadow-lg'}`}>
+                                        <div className="flex justify-between">
+                                            <h3 className="font-bold text-lg text-cream group-hover:text-gold">{ex.title}</h3>
+                                            {isTaken && <span className="text-xs font-bold bg-green-900/30 text-green-400 px-2 py-1 rounded border border-green-800 flex items-center gap-1"><Icons.Check size={12}/> Completed</span>}
+                                        </div>
+                                        <p className="text-xs text-slate-500">{ex.subject} • {ex.teacherName}</p>
+                                        <div className="mt-2 flex gap-2">
+                                            {ex.timingType === 'duration' && <span className="text-[10px] bg-navy-light text-gold px-2 py-0.5 rounded border border-gold/20">{ex.duration} mins</span>}
+                                            {ex.timingType === 'scheduled' && <span className="text-[10px] bg-navy-light text-blue-300 px-2 py-0.5 rounded border border-blue-900">Scheduled</span>}
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                            {exams.filter(e => e.yearLevel === profileData?.yearLevel).length === 0 && <p className="text-center text-slate-500">No exams available.</p>}
+                        </div>
+                    </div>
+                </div>
+            );
+
+            if (status === 'progress') return <StudentProgress uid={loginUser.uid} onBack={()=>setStatus('lobby')} />;
+
+            if (status === 'ready') return (
+                <div className="min-h-screen flex items-center justify-center p-4 bg-navy">
+                    <div className="bg-navy-light p-8 rounded-3xl shadow-2xl max-w-md w-full border-t-8 border-gold">
+                        <h2 className="text-3xl font-bold text-cream mb-1">{activeExam.title}</h2>
+                        <p className="text-slate-400 text-sm mb-6">{activeExam.subject}</p>
+                        
+                        <div className="bg-red-900/20 border border-red-900/50 p-4 mb-6 rounded-xl">
+                            <h3 className="text-red-400 font-bold text-sm uppercase mb-2"><Icons.AlertTriangle size={16} className="inline mr-1"/> Integrity Policy</h3>
+                            <ul className="text-xs text-red-200/70 list-disc list-inside space-y-1">
+                                <li>No tab switching or minimizing.</li>
+                                <li>Copy/Paste is disabled.</li>
+                                <li>Images allowed (Max 7MB).</li>
+                            </ul>
+                        </div>
+
+                        <input className="w-full p-4 mb-4 rounded-xl bg-navy-dark border border-navy-lighter text-cream font-bold" value={studentName} onChange={e => setStudentName(e.target.value)} placeholder="Confirm Name" />
+                        <label className="flex items-center gap-3 p-4 bg-navy-dark rounded-xl border border-navy-lighter mb-4 cursor-pointer">
+                            <input type="checkbox" checked={agreed} onChange={e=>setAgreed(e.target.checked)}/>
+                            <span className="text-sm font-medium text-slate-300">I agree to the rules.</span>
+                        </label>
+                        
+                        <div className="flex gap-3">
+                            <button onClick={()=>setStatus('lobby')} className="px-6 py-4 rounded-xl font-bold text-slate-400 bg-navy-dark">Back</button>
+                            <button onClick={beginTest} className="flex-1 bg-gold text-navy py-4 rounded-xl font-bold hover:bg-gold-light">Start Exam</button>
+                        </div>
+                    </div>
+                </div>
+            );
+
+            if (status === 'taking' || status === 'submitting') return (
+                <div className="min-h-screen p-4 md:p-8 bg-navy no-copy" onCopy={e=>e.preventDefault()} onCut={e=>e.preventDefault()} onPaste={e=>e.preventDefault()}>
+                    {showCalc && <Calculator onClose={()=>setShowCalc(false)} />}
+                    <div className="max-w-4xl mx-auto">
+                        <div className="bg-navy-light/90 backdrop-blur-md p-4 rounded-2xl shadow-xl border border-navy-lighter mb-8 sticky top-4 z-20 flex justify-between items-center border-l-4 border-gold">
+                            <h1 className="font-bold text-cream truncate max-w-[200px]">{activeExam.title}</h1>
+                            <div className="flex items-center gap-3">
+                                <button onClick={()=>setShowCalc(!showCalc)} className="p-2 bg-navy-dark text-gold rounded-lg border border-navy-lighter"><Icons.Calculator/></button>
+                                {timeLeft !== null && <div className={`px-3 py-2 rounded-lg font-bold font-mono ${timeLeft < 300 ? 'bg-red-900/20 text-red-400' : 'bg-navy-dark text-gold'}`}>{Math.floor(timeLeft/60)}:{String(timeLeft%60).padStart(2,'0')}</div>}
+                            </div>
+                        </div>
+
+                        {QUESTION_TYPES_ORDER.map(section => {
+                            const qs = shuffledQuestions.filter(q => q.type === section.type);
+                            if(qs.length === 0) return null;
+                            const instr = activeExam.instructions?.[section.type];
+                            return (
+                                <div key={section.type} className="mb-8 animate-fade-in">
+                                    <h3 className="text-lg font-bold text-gold mb-2 border-b border-navy-lighter pb-2">{section.title}</h3>
+                                    {instr && <div className="mb-4 p-3 bg-navy-light/50 border border-navy-lighter rounded-lg text-xs text-slate-300 italic"><strong className="text-gold not-italic">Instructions:</strong> {instr}</div>}
+                                    <div className="space-y-6">
+                                        {qs.map((q, i) => {
+                                            const ansVal = answers[q.id]?.value || "";
+                                            const ansImg = answers[q.id]?.image || null;
+                                            return (
+                                                <div key={q.id} className="bg-navy-light p-6 rounded-2xl border border-navy-lighter shadow-lg">
+                                                    <div className="flex gap-4 mb-4">
+                                                        <span className="text-gold font-bold text-xl">{i+1}.</span>
+                                                        <div className="flex-1">
+                                                            <p className="text-lg font-medium text-cream">{q.text}</p>
+                                                            {q.image && <img src={q.image} className="mt-4 max-h-60 rounded-lg border border-navy-lighter" alt="Question" />}
+                                                        </div>
+                                                        <span className="text-xs font-bold text-slate-500 bg-navy-dark px-2 py-1 h-fit rounded">{q.points}pts</span>
+                                                    </div>
+
+                                                    {q.type === 'multiple_choice' && (
+                                                        <div className="space-y-2">
+                                                            {q.options.map((opt, idx) => (
+                                                                <label key={idx} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer ${ansVal === opt ? 'bg-gold/10 border-gold' : 'bg-navy-dark border-navy-lighter'}`}>
+                                                                    <input type="radio" name={`q-${q.id}`} checked={ansVal === opt} onChange={() => setAnswerVal(q.id, opt)} className="accent-gold w-5 h-5" />
+                                                                    <span className={ansVal === opt ? 'text-gold font-bold' : 'text-slate-300'}>{opt}</span>
+                                                                </label>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                    
+                                                    {q.type === 'true_false' && (
+                                                        <div className="flex gap-4">
+                                                            {['True', 'False'].map(opt => (
+                                                                <label key={opt} className={`flex-1 p-4 rounded-xl border cursor-pointer text-center font-bold ${ansVal === opt ? 'bg-gold text-navy border-gold' : 'bg-navy-dark border-navy-lighter text-slate-400'}`}>
+                                                                    <input type="radio" name={`q-${q.id}`} checked={ansVal === opt} onChange={() => setAnswerVal(q.id, opt)} className="hidden" />
+                                                                    {opt}
+                                                                </label>
+                                                            ))}
+                                                        </div>
+                                                    )}
+
+                                                    {(q.type === 'identification' || q.type === 'essay') && (
+                                                        <div className="space-y-4">
+                                                            <textarea className="w-full p-4 rounded-xl bg-navy-dark border border-navy-lighter focus:border-gold" rows={4} placeholder="Type Answer..." value={ansVal} onChange={e => setAnswerVal(q.id, e.target.value)}></textarea>
+                                                            <ImageUpload currentImage={ansImg} onUpload={(b64) => setAnswerImg(q.id, b64)} onRemove={() => setAnswerImg(q.id, null)} label="Attach Solution/Diagram" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                        
+                        <div className="flex justify-end pt-6 pb-20">
+                            <button onClick={() => submitFinal(false)} disabled={status==='submitting'} className="bg-gold text-navy px-10 py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-gold-light disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+                                {status === 'submitting' && <div className="w-5 h-5 border-2 border-navy border-t-transparent rounded-full animate-spin"></div>}
+                                {status === 'submitting' ? 'Submitting...' : 'Submit Exam'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+
+            return (
+                <div className="min-h-screen flex items-center justify-center flex-col bg-navy text-cream">
+                    <div className="bg-green-500 p-6 rounded-full mb-6 text-navy shadow-lg animate-bounce"><Icons.Check size={64}/></div>
+                    <h1 className="text-4xl font-bold mb-2">Submitted!</h1>
+                    <p className="text-slate-400 mb-8">Great job, {studentName}.</p>
+                    <button onClick={()=>window.location.reload()} className="text-gold font-bold underline">Return to Dashboard</button>
+                </div>
+            );
+        };
+
+        const LandingPage = ({ onSelect }) => (
+            <div className="min-h-screen bg-navy flex flex-col items-center justify-center p-4 relative overflow-hidden">
+                <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] bg-gold/5 rounded-full blur-[100px]"></div>
+                
+                <div className="text-center z-10 animate-fade-in mb-12">
+                    <div className="inline-flex p-6 bg-navy-light rounded-3xl border border-navy-lighter shadow-2xl mb-8 transform rotate-3"><Icons.Shield size={64} className="text-gold"/></div>
+                    <h1 className="text-6xl font-extrabold text-cream mb-4 tracking-tight">Focus<span className="text-transparent bg-clip-text bg-gradient-to-r from-gold to-yellow-200">Exam</span></h1>
+                    <p className="text-slate-400 mb-12 max-w-lg mx-auto">Secure, integrity-focused assessment platform for modern education.</p>
+                    <div className="flex gap-6 justify-center">
+                        <button onClick={() => onSelect('teacher')} className="group bg-navy-light p-6 rounded-2xl border border-navy-lighter hover:border-gold hover:-translate-y-1 transition-all w-48 shadow-lg">
+                            <Icons.Book size={32} className="mx-auto mb-3 text-slate-500 group-hover:text-gold"/>
+                            <span className="block font-bold text-cream">Teacher</span>
+                        </button>
+                        <button onClick={() => onSelect('student')} className="group bg-navy-light p-6 rounded-2xl border border-navy-lighter hover:border-gold hover:-translate-y-1 transition-all w-48 shadow-lg">
+                            <Icons.Users size={32} className="mx-auto mb-3 text-slate-500 group-hover:text-gold"/>
+                            <span className="block font-bold text-cream">Student</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div className="mt-12 grid gap-6 max-w-4xl mx-auto text-left w-full z-20">
+                    <div className="bg-navy-light/80 backdrop-blur p-6 rounded-2xl border border-navy-lighter">
+                        <h3 className="text-gold font-bold mb-4 border-b border-navy-lighter pb-2 flex items-center gap-2"><Icons.Info size={20}/> General Instructions</h3>
+                        <div className="grid md:grid-cols-2 gap-6">
+                            <ul className="list-disc list-inside space-y-2 text-sm text-slate-300">
+                                <li><strong className="text-white">Sign In:</strong> Use your school-issued Google Account.</li>
+                                <li><strong className="text-white">Integrity:</strong> Anti-cheat is active. Do not switch tabs.</li>
+                                <li><strong className="text-white">Environment:</strong> Ensure a stable internet connection.</li>
+                            </ul>
+                            <ul className="list-disc list-inside space-y-2 text-sm text-slate-300">
+                                <li><strong className="text-white">Uploads:</strong> Images for answers must be under 7MB.</li>
+                                <li><strong className="text-white">Timing:</strong> Timers auto-submit when they hit zero.</li>
+                                <li><strong className="text-white">Privacy:</strong> Your progress is saved automatically.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+
+        const App = () => {
+            const [page, setPage] = useState('landing');
+            const [user, setUser] = useState(null);
+            const [teacherName, setTeacherName] = useState("");
+
+            const handleTeacherLogin = () => {
+                auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).then(res => {
+                    if (AUTHORIZED_TEACHERS.includes(res.user.email)) {
+                        setUser(res.user);
+                        db.ref(`students/${res.user.uid}`).once('value').then(s => {
+                            if(s.val()?.displayName) { setTeacherName(s.val().displayName); setPage('teacher'); }
+                            else { 
+                                const n = prompt("Enter Display Name (e.g. Mr. Smith):"); 
+                                if(n) { db.ref(`students/${res.user.uid}`).update({displayName: n}); setTeacherName(n); setPage('teacher'); }
+                            }
+                        });
+                    } else {
+                        alert("Unauthorized"); auth.signOut();
+                    }
+                });
+            };
+
+            if (page === 'landing') return <LandingPage onSelect={r => r === 'teacher' ? handleTeacherLogin() : setPage('student')} />;
+            if (page === 'student') return <StudentPortal onBack={() => setPage('landing')} />;
+            if (page === 'teacher' && user) return <TeacherDashboard user={user} teacherName={teacherName} onLogout={() => { auth.signOut(); setPage('landing'); }} />;
+            return <div className="min-h-screen bg-navy flex items-center justify-center text-gold font-bold animate-pulse">LOADING...</div>;
+        };
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>
