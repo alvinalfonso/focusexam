@@ -146,7 +146,7 @@
 
         // --- HELPERS ---
         const calculateScore = (submission, examData) => {
-            if (!examData || !examData.questions) return "N/A";
+            if (!examData || !examData.questions) return { score: 0, max: 0, formatted: "N/A" };
             let score = 0;
             let max = 0; 
             const questions = Array.isArray(examData.questions) ? examData.questions : Object.values(examData.questions || {});
@@ -206,7 +206,7 @@
             };
             return (
                 <div className="mb-4">
-                    <label className="text-xs text-slate-400 font-bold uppercase block mb-2">{label} (Max 7MB)</label>
+                    <label className="text-xs text-slate-400 font-bold uppercase block mb-2">{label}</label>
                     {!currentImage ? (
                         <div className="relative border-2 border-dashed border-navy-lighter rounded-xl hover:border-gold hover:bg-navy-dark transition-all p-4 text-center">
                             <input type="file" accept="image/*" onChange={handleFile} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
@@ -289,7 +289,7 @@
                                 </div>
                                 <div className="flex justify-between gap-2">
                                     <p className="text-sm font-medium text-cream line-clamp-2 cursor-pointer flex-1" onClick={() => toggleSelect(q)}>{q.text}</p>
-                                    <button onClick={(e) => {e.stopPropagation(); deleteQuestion(q.id);}} className="text-slate-500 hover:text-red-400 p-1"><Icons.Trash size={14}/></button>
+                                    <button onClick={(e) => {e.stopPropagation(); deleteQuestion(q.id);}} className="text-slate-500 hover:text-red-400 p-1 flex items-center gap-1"><Icons.Trash size={14}/> <span className="text-[10px]">Del</span></button>
                                 </div>
                                 {q.image && <div className="mt-2"><img src={q.image} className="h-10 rounded object-cover border border-navy-lighter"/></div>}
                             </div>
@@ -378,7 +378,7 @@
                         </div>
                         <div className="flex items-center gap-4">
                             <div className="hidden md:flex flex-col items-end mr-2"><span className="text-sm font-bold">{teacherName}</span><span className="text-xs text-slate-500">{user.email}</span></div>
-                            <button onClick={onLogout} className="text-slate-400 hover:text-red-400 bg-navy-dark p-2 rounded-lg border border-navy-lighter"><Icons.LogOut size={20}/></button>
+                            <button onClick={onLogout} className="text-slate-400 hover:text-red-400 bg-navy-dark p-2 rounded-lg border border-navy-lighter flex items-center gap-2"><Icons.LogOut size={20}/> <span className="text-sm font-bold">Logout</span></button>
                         </div>
                     </header>
 
@@ -394,8 +394,8 @@
                                 </div>
                                 <div className="grid gap-4">
                                     {exams.map(ex => (
-                                        <div key={ex.id} className="bg-navy-light rounded-2xl p-6 border border-navy-lighter hover:border-gold/50 transition-all flex justify-between items-center">
-                                            <div>
+                                        <div key={ex.id} className="bg-navy-light rounded-2xl p-6 border border-navy-lighter hover:border-gold/50 transition-all flex flex-col md:flex-row justify-between items-center gap-4">
+                                            <div className="w-full md:w-auto">
                                                 <h3 className="font-bold text-xl mb-1">{ex.title}</h3>
                                                 <div className="flex gap-2 text-sm text-slate-400">
                                                     <span className="bg-navy-dark px-2 rounded border border-navy-lighter">{ex.subject}</span>
@@ -403,11 +403,11 @@
                                                     <span className={`px-2 rounded border ${ex.status === 'published' ? 'bg-green-900/20 text-green-400 border-green-800' : 'bg-slate-800 border-slate-700'}`}>{ex.status}</span>
                                                 </div>
                                             </div>
-                                            <div className="flex gap-2">
-                                                <button onClick={() => {if(ex.status==='published') db.ref(`exams/${ex.id}/status`).set('draft'); else db.ref(`exams/${ex.id}/status`).set('published');}} className="p-2 bg-navy-dark rounded border border-navy-lighter text-slate-400 hover:text-cream" title="Toggle Status"><Icons.Cloud size={18}/></button>
-                                                <button onClick={() => { setEditingExamId(ex.id); setNewExam({...ex, timingType: ex.scheduleStart ? 'scheduled' : (ex.duration ? 'duration' : 'none'), questions: ex.questions || [], instructions: ex.instructions || {} }); setView('create'); }} className="p-2 bg-navy-dark rounded border border-navy-lighter text-slate-400 hover:text-gold" title="Edit"><Icons.Edit size={18}/></button>
-                                                <button onClick={() => { setView('results'); setEditingExamId(ex.id); }} className="p-2 bg-navy-dark rounded border border-navy-lighter text-slate-400 hover:text-blue-400" title="Results"><Icons.BarChart size={18}/></button>
-                                                <button onClick={() => {if(confirm("Delete?")) db.ref(`exams/${ex.id}`).remove();}} className="p-2 bg-navy-dark rounded border border-navy-lighter text-slate-400 hover:text-red-400" title="Delete"><Icons.Trash size={18}/></button>
+                                            <div className="flex gap-2 w-full md:w-auto overflow-x-auto">
+                                                <button onClick={() => {if(ex.status==='published') db.ref(`exams/${ex.id}/status`).set('draft'); else db.ref(`exams/${ex.id}/status`).set('published');}} className="px-3 py-2 bg-navy-dark rounded border border-navy-lighter text-slate-400 hover:text-cream flex items-center gap-2 text-sm font-bold whitespace-nowrap"><Icons.Cloud size={16}/> {ex.status==='published' ? 'Unpublish' : 'Publish'}</button>
+                                                <button onClick={() => { setEditingExamId(ex.id); setNewExam({...ex, timingType: ex.scheduleStart ? 'scheduled' : (ex.duration ? 'duration' : 'none'), questions: ex.questions || [], instructions: ex.instructions || {} }); setView('create'); }} className="px-3 py-2 bg-navy-dark rounded border border-navy-lighter text-slate-400 hover:text-gold flex items-center gap-2 text-sm font-bold whitespace-nowrap"><Icons.Edit size={16}/> Edit</button>
+                                                <button onClick={() => { setView('results'); setEditingExamId(ex.id); }} className="px-3 py-2 bg-navy-dark rounded border border-navy-lighter text-slate-400 hover:text-blue-400 flex items-center gap-2 text-sm font-bold whitespace-nowrap"><Icons.BarChart size={16}/> Results</button>
+                                                <button onClick={() => {if(confirm("Delete?")) db.ref(`exams/${ex.id}`).remove();}} className="px-3 py-2 bg-navy-dark rounded border border-navy-lighter text-slate-400 hover:text-red-400 flex items-center gap-2 text-sm font-bold whitespace-nowrap"><Icons.Trash size={16}/> Delete</button>
                                             </div>
                                         </div>
                                     ))}
@@ -494,7 +494,7 @@
                                             </div>
                                             
                                             <textarea className="w-full p-4 rounded-xl text-sm h-24 mb-4 resize-none" placeholder="Question text..." value={curQ.text} onChange={e => setCurQ({...curQ, text: e.target.value})}></textarea>
-                                            <ImageUpload currentImage={curQ.image} onUpload={(b64) => setCurQ({...curQ, image: b64})} onRemove={() => setCurQ({...curQ, image: null})} label="Question Image" />
+                                            <ImageUpload currentImage={curQ.image} onUpload={(b64) => setCurQ({...curQ, image: b64})} onRemove={() => setCurQ({...curQ, image: null})} label="Question Image (Optional - Max 7MB)" />
 
                                             {(qType === 'identification' || qType === 'essay') && (
                                                 <div className="mb-4">
@@ -536,17 +536,17 @@
 
                                         <div className="space-y-4">
                                             {newExam.questions.map((q, idx) => (
-                                                <div key={q.id} className="p-4 border border-navy-lighter bg-navy-dark rounded-xl flex gap-4 group">
+                                                <div key={q.id} className="p-4 border border-navy-lighter bg-navy-dark rounded-xl flex gap-4 group items-center">
                                                     <span className="w-6 h-6 bg-navy-light text-slate-400 rounded-full flex items-center justify-center text-xs border border-navy-lighter">{idx+1}</span>
                                                     <div className="flex-1">
                                                         <div className="flex justify-between">
                                                             <p className="font-medium text-cream text-sm">{q.text}</p>
-                                                            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                <button onClick={() => { setCurQ(q); setQType(q.type); setEditingQId(q.id); }} className="text-gold"><Icons.Edit size={14}/></button>
-                                                                <button onClick={() => setNewExam(p => ({ ...p, questions: p.questions.filter(x => x.id !== q.id) }))} className="text-red-400"><Icons.Trash size={14}/></button>
-                                                            </div>
                                                         </div>
                                                         {q.image && <img src={q.image} className="h-12 mt-2 rounded border border-navy-lighter"/>}
+                                                    </div>
+                                                    <div className="flex gap-2">
+                                                        <button onClick={() => { setCurQ(q); setQType(q.type); setEditingQId(q.id); }} className="text-gold flex items-center gap-1 text-xs font-bold p-2 bg-navy-light rounded border border-navy-lighter"><Icons.Edit size={12}/> Edit</button>
+                                                        <button onClick={() => setNewExam(p => ({ ...p, questions: p.questions.filter(x => x.id !== q.id) }))} className="text-red-400 flex items-center gap-1 text-xs font-bold p-2 bg-navy-light rounded border border-navy-lighter"><Icons.Trash size={12}/> Remove</button>
                                                     </div>
                                                 </div>
                                             ))}
@@ -571,23 +571,40 @@
         const ResultsDashboard = ({ examId, onClose }) => {
             const [subs, setSubs] = useState([]);
             const [examData, setExamData] = useState(null);
-            const [loading, setLoading] = useState(true);
             const [gradingSubId, setGradingSubId] = useState(null); 
+            const [stats, setStats] = useState({ avg: 0, high: 0, low: 0 });
 
             useEffect(() => {
                 db.ref(`exams/${examId}`).once('value').then(s => setExamData(s.val()));
                 db.ref('submissions').orderByChild('examId').equalTo(examId).on('value', s => {
-                    setSubs(s.val() ? Object.entries(s.val()).map(([k,v]) => ({id:k, ...v})) : []);
-                    setLoading(false);
+                    const data = s.val() ? Object.entries(s.val()).map(([k,v]) => ({id:k, ...v})) : [];
+                    setSubs(data);
+                    
+                    if (data.length > 0 && examData) {
+                         // Calculate basic stats for autograded portions
+                         let total = 0, high = 0, low = 1000;
+                         let counted = 0;
+                         data.forEach(sub => {
+                             const { score, max } = calculateScore(sub, examData);
+                             if(max > 0) {
+                                total += score;
+                                if(score > high) high = score;
+                                if(score < low) low = score;
+                                counted++;
+                             }
+                         });
+                         setStats({ avg: counted ? (total/counted).toFixed(1) : 0, high, low: low === 1000 ? 0 : low });
+                    }
                 });
-            }, [examId]);
+            }, [examId, examData]);
 
             const handleExport = () => {
+                if(!examData) return;
                 const header = ["Student", "Score", ...examData.questions.map((q, i) => `Q${i+1}`)];
                 const data = subs.map(s => [s.studentName, calculateScore(s, examData).formatted, ...examData.questions.map(q => typeof s.answers[q.id] === 'object' ? (s.answers[q.id].value || '[Image]') : (s.answers[q.id] || ''))]);
                 const wb = XLSX.utils.book_new();
                 XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([header, ...data]), "Results");
-                XLSX.writeFile(wb, "Results.xlsx");
+                XLSX.writeFile(wb, `${examData.title}_Results.xlsx`);
             };
 
             const gradingSub = subs.find(s => s.id === gradingSubId);
@@ -595,11 +612,18 @@
             return (
                 <div className="fixed inset-0 z-50 bg-navy/80 backdrop-blur-md flex items-center justify-center p-4">
                     <div className="bg-navy-light rounded-2xl shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col border border-navy-lighter">
-                        <div className="p-6 border-b border-navy-lighter flex justify-between items-center bg-navy-dark/30">
-                            <h2 className="text-xl font-bold text-cream">Results: {examData?.title}</h2>
-                            <div className="flex gap-2"><button onClick={handleExport} className="bg-green-600 px-3 py-1.5 rounded text-sm font-bold flex gap-1 items-center text-white"><Icons.FileSpreadsheet size={14}/> Export</button><button onClick={onClose}><Icons.X/></button></div>
+                        <div className="p-6 border-b border-navy-lighter flex flex-col md:flex-row justify-between items-center bg-navy-dark/30 gap-4">
+                            <div>
+                                <h2 className="text-xl font-bold text-cream">Results: {examData?.title}</h2>
+                                <p className="text-xs text-slate-400 mt-1">Avg Score: <span className="text-gold">{stats.avg}</span> • High: {stats.high} • Low: {stats.low}</p>
+                            </div>
+                            <div className="flex gap-2">
+                                <button onClick={handleExport} className="bg-green-600 px-4 py-2 rounded-lg text-sm font-bold flex gap-2 items-center text-white hover:bg-green-700 transition-all"><Icons.FileSpreadsheet size={16}/> Export Excel</button>
+                                <button onClick={onClose} className="bg-navy-dark border border-navy-lighter px-4 py-2 rounded-lg text-sm font-bold text-slate-300 hover:text-white flex gap-2 items-center"><Icons.X size={16}/> Close</button>
+                            </div>
                         </div>
                         <div className="flex-1 overflow-auto p-6 scroller bg-navy">
+                             {subs.length === 0 ? <p className="text-center text-slate-500 mt-10">No submissions yet.</p> :
                              <table className="w-full text-left text-sm border-separate border-spacing-y-2">
                                 <thead className="text-slate-500 font-semibold uppercase text-xs"><tr><th className="p-4">Student</th><th className="p-4">Score</th><th className="p-4">Integrity</th><th className="p-4">Action</th></tr></thead>
                                 <tbody>{subs.map(s => (
@@ -607,16 +631,16 @@
                                         <td className="p-4 font-bold border-y border-l border-navy-lighter rounded-l-xl">{s.studentName}</td>
                                         <td className="p-4 text-gold font-bold border-y border-navy-lighter">{calculateScore(s, examData).formatted}</td>
                                         <td className="p-4 border-y border-navy-lighter"><span className={`px-2 py-1 rounded text-xs border ${s.cheatStats?.count > 0 ? 'bg-red-900/20 text-red-400 border-red-900' : 'bg-green-900/20 text-green-400 border-green-900'}`}>{s.cheatStats?.count || 0} Flags</span></td>
-                                        <td className="p-4 border-y border-r border-navy-lighter rounded-r-xl"><button onClick={()=>setGradingSubId(s.id)} className="bg-gold text-navy px-3 py-1 rounded font-bold text-xs">Grade</button></td>
+                                        <td className="p-4 border-y border-r border-navy-lighter rounded-r-xl"><button onClick={()=>setGradingSubId(s.id)} className="bg-gold text-navy px-3 py-1.5 rounded-lg font-bold text-xs hover:bg-gold-light flex items-center gap-1"><Icons.Eye size={12}/> Review / Grade</button></td>
                                     </tr>
                                 ))}</tbody>
-                            </table>
+                            </table>}
                         </div>
                     </div>
                     {gradingSub && (
                         <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-4">
                             <div className="bg-navy-light w-full max-w-4xl h-[90vh] flex flex-col rounded-2xl border border-navy-lighter">
-                                <div className="p-4 border-b border-navy-lighter flex justify-between"><h3 className="font-bold">{gradingSub.studentName}</h3><button onClick={()=>setGradingSubId(null)}><Icons.X/></button></div>
+                                <div className="p-4 border-b border-navy-lighter flex justify-between"><h3 className="font-bold text-lg">{gradingSub.studentName}</h3><button onClick={()=>setGradingSubId(null)} className="text-slate-400 hover:text-white"><Icons.X/></button></div>
                                 <div className="flex-1 overflow-y-auto p-6 space-y-4 scroller">
                                     {examData.questions.map((q, i) => {
                                         const ansObj = gradingSub.answers[q.id];
@@ -625,15 +649,19 @@
                                         const manual = gradingSub.manualGrades?.[q.id];
                                         return (
                                             <div key={q.id} className="p-4 bg-navy-dark rounded-xl border border-navy-lighter">
-                                                <p className="font-bold text-sm mb-2 text-slate-400">Q{i+1}: {q.text}</p>
+                                                <div className="flex justify-between mb-2">
+                                                    <p className="font-bold text-sm text-slate-300">Q{i+1}: {q.text}</p>
+                                                    <span className="text-xs bg-navy px-2 py-1 rounded text-gold border border-navy-lighter">{q.points} pts</span>
+                                                </div>
                                                 {q.image && <img src={q.image} className="h-20 mb-2 rounded border border-navy-lighter"/>}
                                                 <div className="bg-navy p-3 rounded border border-navy-lighter mb-2">
+                                                    <p className="text-xs text-slate-500 uppercase mb-1">Student Answer:</p>
                                                     <p className="text-cream">{ansVal || <i className="text-slate-500">No text answer</i>}</p>
                                                     {ansImg && <img src={ansImg} className="mt-2 max-h-40 rounded border border-navy-lighter"/>}
                                                 </div>
-                                                <div className="flex justify-end gap-2 items-center">
-                                                    <span className="text-xs text-slate-500 uppercase">Score (Max {q.points}):</span>
-                                                    <input type="number" className="w-16 p-1 text-center rounded bg-navy border border-navy-lighter" value={manual !== undefined ? manual : ""} placeholder="Auto" onChange={e => db.ref(`submissions/${gradingSub.id}/manualGrades/${q.id}`).set(parseInt(e.target.value)||0)} />
+                                                <div className="flex justify-end gap-2 items-center bg-navy-light/30 p-2 rounded-lg">
+                                                    <span className="text-xs text-slate-400 uppercase font-bold">Grade:</span>
+                                                    <input type="number" className="w-20 p-1 text-center rounded bg-navy border border-navy-lighter focus:border-gold" value={manual !== undefined ? manual : ""} placeholder="Auto" onChange={e => db.ref(`submissions/${gradingSub.id}/manualGrades/${q.id}`).set(parseInt(e.target.value)||0)} />
                                                 </div>
                                             </div>
                                         );
@@ -678,7 +706,7 @@
             return (
                 <div className="min-h-screen bg-navy p-4 md:p-8">
                     <div className="max-w-4xl mx-auto">
-                        <button onClick={onBack} className="mb-6 text-slate-400 hover:text-cream flex items-center gap-2"><Icons.ChevronRight className="rotate-180"/> Back to Lobby</button>
+                        <button onClick={onBack} className="mb-6 text-slate-400 hover:text-cream flex items-center gap-2 font-medium"><Icons.ChevronRight className="rotate-180"/> Back to Lobby</button>
                         <h2 className="text-3xl font-bold text-cream mb-6">My Progress</h2>
                         
                         <div className="bg-navy-light p-6 rounded-2xl border border-navy-lighter shadow-xl mb-8">
@@ -698,17 +726,17 @@
 
                         <div className="grid gap-4">
                             {data.map((item, i) => (
-                                <div key={i} className="bg-navy-light p-4 rounded-xl border border-navy-lighter flex justify-between items-center">
+                                <div key={i} className="bg-navy-light p-4 rounded-xl border border-navy-lighter flex justify-between items-center hover:border-gold/30 transition-all">
                                     <div>
-                                        <h4 className="font-bold text-cream">{item.name}</h4>
+                                        <h4 className="font-bold text-cream text-lg">{item.name}</h4>
                                         <p className="text-xs text-slate-500">{item.date}</p>
                                     </div>
-                                    <div className="flex items-center gap-4">
+                                    <div className="flex items-center gap-6">
                                         <div className="text-right">
-                                            <p className="text-xl font-bold text-gold">{item.score}/{item.total}</p>
+                                            <p className="text-2xl font-bold text-gold">{item.score}/{item.total}</p>
                                             <p className="text-xs text-slate-400">{item.percentage.toFixed(1)}%</p>
                                         </div>
-                                        <button onClick={() => setReviewSubId(item.id)} className="p-2 bg-navy-dark border border-navy-lighter rounded-lg text-slate-300 hover:text-gold"><Icons.Eye size={16}/></button>
+                                        <button onClick={() => setReviewSubId(item.id)} className="bg-navy-dark border border-navy-lighter px-4 py-2 rounded-lg text-sm font-bold text-slate-300 hover:text-white hover:border-gold transition-all">Review</button>
                                     </div>
                                 </div>
                             ))}
@@ -969,23 +997,24 @@
                         <p className="text-slate-400 text-sm mb-6">{activeExam.subject}</p>
                         
                         <div className="bg-red-900/20 border border-red-900/50 p-4 mb-6 rounded-xl">
-                            <h3 className="text-red-400 font-bold text-sm uppercase mb-2"><Icons.AlertTriangle size={16} className="inline mr-1"/> Integrity Policy</h3>
-                            <ul className="text-xs text-red-200/70 list-disc list-inside space-y-1">
-                                <li>No tab switching or minimizing.</li>
-                                <li>Copy/Paste is disabled.</li>
-                                <li>Images allowed (Max 7MB).</li>
+                            <h3 className="text-red-400 font-bold text-sm uppercase mb-2 flex items-center gap-2"><Icons.AlertTriangle size={16}/> Important: Read Before Starting</h3>
+                            <ul className="text-sm text-red-200/80 list-disc list-inside space-y-2">
+                                <li><strong>Do NOT switch tabs.</strong> The system monitors tab activity and will flag your submission if you leave.</li>
+                                <li><strong>Full screen required.</strong> Best experience is on a desktop or laptop.</li>
+                                <li><strong>One attempt only.</strong> Once you start, you must finish.</li>
+                                <li><strong>Auto-submit.</strong> If the timer runs out, your answers will be submitted automatically.</li>
                             </ul>
                         </div>
 
                         <input className="w-full p-4 mb-4 rounded-xl bg-navy-dark border border-navy-lighter text-cream font-bold" value={studentName} onChange={e => setStudentName(e.target.value)} placeholder="Confirm Name" />
-                        <label className="flex items-center gap-3 p-4 bg-navy-dark rounded-xl border border-navy-lighter mb-4 cursor-pointer">
-                            <input type="checkbox" checked={agreed} onChange={e=>setAgreed(e.target.checked)}/>
-                            <span className="text-sm font-medium text-slate-300">I agree to the rules.</span>
+                        <label className="flex items-center gap-3 p-4 bg-navy-dark rounded-xl border border-navy-lighter mb-4 cursor-pointer hover:bg-navy-lighter transition-all">
+                            <input type="checkbox" checked={agreed} onChange={e=>setAgreed(e.target.checked)} className="w-5 h-5"/>
+                            <span className="text-sm font-medium text-slate-300">I understand the rules and am ready to begin.</span>
                         </label>
                         
                         <div className="flex gap-3">
-                            <button onClick={()=>setStatus('lobby')} className="px-6 py-4 rounded-xl font-bold text-slate-400 bg-navy-dark">Back</button>
-                            <button onClick={beginTest} className="flex-1 bg-gold text-navy py-4 rounded-xl font-bold hover:bg-gold-light">Start Exam</button>
+                            <button onClick={()=>setStatus('lobby')} className="px-6 py-4 rounded-xl font-bold text-slate-400 bg-navy-dark hover:text-white">Back</button>
+                            <button onClick={beginTest} className="flex-1 bg-gold text-navy py-4 rounded-xl font-bold hover:bg-gold-light shadow-lg">Start Exam</button>
                         </div>
                     </div>
                 </div>
@@ -1051,7 +1080,7 @@
                                                     {(q.type === 'identification' || q.type === 'essay') && (
                                                         <div className="space-y-4">
                                                             <textarea className="w-full p-4 rounded-xl bg-navy-dark border border-navy-lighter focus:border-gold" rows={4} placeholder="Type Answer..." value={ansVal} onChange={e => setAnswerVal(q.id, e.target.value)}></textarea>
-                                                            <ImageUpload currentImage={ansImg} onUpload={(b64) => setAnswerImg(q.id, b64)} onRemove={() => setAnswerImg(q.id, null)} label="Attach Solution/Diagram" />
+                                                            <ImageUpload currentImage={ansImg} onUpload={(b64) => setAnswerImg(q.id, b64)} onRemove={() => setAnswerImg(q.id, null)} label="Attach Solution/Diagram (Optional)" />
                                                         </div>
                                                     )}
                                                 </div>
@@ -1104,18 +1133,25 @@
 
                 <div className="mt-12 grid gap-6 max-w-4xl mx-auto text-left w-full z-20">
                     <div className="bg-navy-light/80 backdrop-blur p-6 rounded-2xl border border-navy-lighter">
-                        <h3 className="text-gold font-bold mb-4 border-b border-navy-lighter pb-2 flex items-center gap-2"><Icons.Info size={20}/> General Instructions</h3>
-                        <div className="grid md:grid-cols-2 gap-6">
-                            <ul className="list-disc list-inside space-y-2 text-sm text-slate-300">
-                                <li><strong className="text-white">Sign In:</strong> Use your school-issued Google Account.</li>
-                                <li><strong className="text-white">Integrity:</strong> Anti-cheat is active. Do not switch tabs.</li>
-                                <li><strong className="text-white">Environment:</strong> Ensure a stable internet connection.</li>
-                            </ul>
-                            <ul className="list-disc list-inside space-y-2 text-sm text-slate-300">
-                                <li><strong className="text-white">Uploads:</strong> Images for answers must be under 7MB.</li>
-                                <li><strong className="text-white">Timing:</strong> Timers auto-submit when they hit zero.</li>
-                                <li><strong className="text-white">Privacy:</strong> Your progress is saved automatically.</li>
-                            </ul>
+                        <h3 className="text-gold font-bold mb-4 border-b border-navy-lighter pb-2 flex items-center gap-2"><Icons.Info size={20}/> Welcome to FocusExam</h3>
+                        <div className="grid md:grid-cols-2 gap-8">
+                            <div>
+                                <h4 className="text-white font-bold mb-2">For Students</h4>
+                                <ul className="list-disc list-inside space-y-2 text-sm text-slate-300">
+                                    <li><strong>Sign In:</strong> Use your school-issued Google Account to access your dashboard.</li>
+                                    <li><strong>Integrity Check:</strong> Do not leave the exam tab. Tab switching is monitored and flagged.</li>
+                                    <li><strong>Taking Exams:</strong> Answer questions carefully. You can upload diagrams for essays if needed.</li>
+                                    <li><strong>Results:</strong> View your scores and performance trends immediately after grading.</li>
+                                </ul>
+                            </div>
+                            <div>
+                                <h4 className="text-white font-bold mb-2">For Teachers</h4>
+                                <ul className="list-disc list-inside space-y-2 text-sm text-slate-300">
+                                    <li><strong>Create & Manage:</strong> Build secure exams with various question types.</li>
+                                    <li><strong>Question Bank:</strong> Save and reuse high-quality questions for future tests.</li>
+                                    <li><strong>Insights:</strong> Analyze class performance with detailed statistics and exportable reports.</li>
+                                </ul>
+                            </div>
                         </div>
                     </div>
                 </div>
